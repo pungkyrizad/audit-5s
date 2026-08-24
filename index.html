@@ -253,7 +253,7 @@
  <h2 class="text-xl font-bold text-slate-800">User Management</h2>
  <p class="text-xs text-slate-500 mt-0.5">Daftar akun pengguna sistem</p>
  </div>
- <button onclick="openAdminUserModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-user-plus mr-1"></i> Tambah User</button>
+ <div class="flex flex-wrap gap-2"><button onclick="openAdminUserPdfModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"><i class="fas fa-file-pdf mr-1"></i> Upload PDF User</button><button onclick="openAdminUserModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-user-plus mr-1"></i> Tambah User</button></div>
  </div>
  <div class="overflow-x-auto">
  <table class="w-full text-left border-collapse">
@@ -599,16 +599,32 @@
  <!-- USER ACCOUNT MODAL -->
  <div id="adminUserModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
- <h3 class="text-xl font-bold text-slate-800 mb-4">Tambah Akun User</h3>
+ <div class="flex items-start justify-between gap-3 mb-4"><div><h3 id="adminUserModalTitle" class="text-xl font-bold text-slate-800">Tambah Akun User</h3><p id="adminUserModalHint" class="text-xs text-slate-500 mt-1">Buat satu akun pengguna baru.</p></div><button onclick="closeAdminUserModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button></div>
  <div class="space-y-3">
  <input id="newUserName" type="text" placeholder="Nama lengkap" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
  <input id="newUserPhone" type="tel" placeholder="Nomor HP login, contoh 081234567890" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
- <input id="newUserPassword" type="password" placeholder="Password awal (min. 6 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="newUserPassword" type="password" placeholder="Password awal / password baru (min. 6 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <p id="editPasswordHint" class="hidden text-[11px] text-slate-500 -mt-1">Kosongkan password jika tidak ingin mengubah password user.</p>
  <select id="newUserRole" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"><option>Management</option><option>Auditor</option><option>Auditee</option><option>Admin</option></select>
- <input id="newUserAssignedLoc" type="text" value="ALL" placeholder="Lokasi penugasan / ALL" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="newUserAssignedLoc" type="text" value="ALL" placeholder="ID lokasi penugasan / ALL" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <p class="text-[11px] text-slate-500">Untuk Auditee, isi ID lokasi persis seperti yang ada di Kelola Lokasi. Bila lebih dari satu lokasi, pisahkan dengan koma.</p>
  </div>
- <div class="flex gap-3 mt-6"><button onclick="closeAdminUserModal()" class="flex-1 py-2.5 bg-slate-100 rounded-xl font-semibold">Batal</button><button onclick="saveCloudUser()" class="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-semibold">Buat Akun</button></div>
+ <button id="bulkUserImportBtn" onclick="closeAdminUserModal();openAdminUserPdfModal()" class="w-full mt-4 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl font-semibold text-sm"><i class="fas fa-file-pdf mr-1.5"></i> Import Banyak User dari PDF</button>
+ <div class="flex gap-3 mt-5"><button onclick="closeAdminUserModal()" class="flex-1 py-2.5 bg-slate-100 rounded-xl font-semibold">Batal</button><button id="saveCloudUserBtn" onclick="saveCloudUser()" class="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-semibold">Buat Akun</button></div>
  </div></div>
+
+ <!-- USER PDF IMPORT MODAL -->
+ <div id="adminUserPdfModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[55] flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
+   <div class="p-6 border-b border-slate-100 flex justify-between items-center"><div><h3 class="text-lg font-bold text-slate-800"><i class="fas fa-file-pdf text-emerald-600 mr-2"></i>Import Banyak User dari PDF</h3><p class="text-xs text-slate-500 mt-1">Format disarankan: No | Nama | Nomor HP | Password | Role | ID Lokasi. Hasil dapat diedit sebelum dibuat.</p></div><button onclick="closeAdminUserPdfModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button></div>
+   <div class="p-6 overflow-y-auto space-y-4">
+    <label class="block border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center cursor-pointer bg-slate-50 hover:bg-emerald-50/30"><i class="fas fa-cloud-upload-alt text-4xl text-emerald-500 mb-2"></i><p class="text-sm font-bold text-slate-700">Klik untuk memilih PDF daftar user</p><p class="text-xs text-slate-400 mt-1">PDF harus memiliki text layer. PDF hasil scan/foto belum dapat dibaca otomatis.</p><input id="adminUserPdfInput" type="file" accept="application/pdf" class="hidden" onchange="handleAdminUserPdfSelect(event)"></label>
+    <div id="pdfUserLoading" class="hidden text-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-emerald-600"></i><p class="text-xs text-slate-600 mt-2">Mengekstrak data user...</p></div>
+    <div id="pdfUserPreviewContainer" class="hidden"><div class="flex justify-between items-center mb-2"><h4 class="text-sm font-bold text-slate-800">Pratinjau (<span id="parsedUserCount">0</span> user)</h4><span class="text-[11px] text-slate-500">Periksa semua kolom sebelum impor</span></div><div class="max-h-[48vh] overflow-auto border border-slate-200 rounded-xl"><table class="w-full text-left text-xs min-w-[950px]"><thead class="sticky top-0 bg-slate-100 text-slate-600"><tr><th class="p-2">Nama</th><th class="p-2">Nomor HP</th><th class="p-2">Password</th><th class="p-2">Role</th><th class="p-2">ID Lokasi</th><th class="p-2 w-12"></th></tr></thead><tbody id="pdfUserPreviewTable" class="divide-y divide-slate-100 bg-white"></tbody></table></div><div id="pdfUserImportResult" class="hidden mt-3 p-3 rounded-xl text-xs"></div></div>
+   </div>
+   <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3"><button onclick="closeAdminUserPdfModal()" class="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 rounded-xl text-sm">Batal</button><button id="btnImportUserPdf" onclick="importParsedUsersPdf()" disabled class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-50"><i class="fas fa-users mr-1.5"></i>Buat Semua Akun</button></div>
+  </div>
+ </div>
 
  <!-- CONFIRMATION MODAL -->
  <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1585,7 +1601,15 @@
  
  const locSelect = document.getElementById('reportLocSelect'); 
  locSelect.innerHTML = '';
- locationsConfig.forEach(loc => locSelect.innerHTML += `<option value="${loc.id}">${loc.name}</option>`);
+ const allowedLocIds = getAssignedLocationIds();
+ const visibleLocations = mode === 'auditee' && !allowedLocIds.includes('ALL') ? locationsConfig.filter(loc => allowedLocIds.includes(loc.id)) : locationsConfig;
+ visibleLocations.forEach(loc => locSelect.innerHTML += `<option value="${loc.id}">${loc.name}</option>`);
+ locSelect.disabled = mode === 'auditee' && visibleLocations.length <= 1;
+ if(mode === 'auditee' && !visibleLocations.length){
+   document.getElementById('reportChecklistSelect').innerHTML='';
+   document.getElementById('reportContentContainer').innerHTML='<div class="p-10 bg-amber-50 border border-amber-200 rounded-2xl text-center text-amber-700"><i class="fas fa-map-marker-alt text-3xl mb-3"></i><p class="font-bold">Lokasi penugasan belum valid.</p><p class="text-xs mt-1">Hubungi Admin untuk memperbarui ID lokasi pada User Management.</p></div>';
+   return;
+ }
  updateReportChecklistOptions();
  }
 
@@ -1605,6 +1629,10 @@
 
  function loadReport() {
  const locId = document.getElementById('reportLocSelect').value;
+ if(currentUserRole === 'Auditee' && !isLocationAllowedForCurrentUser(locId)){
+   document.getElementById('reportContentContainer').innerHTML='<div class="p-10 bg-rose-50 border border-rose-200 rounded-2xl text-center text-rose-700"><i class="fas fa-lock text-3xl mb-3"></i><p class="font-bold">Akses lokasi ditolak.</p><p class="text-xs mt-1">Auditee hanya dapat melihat temuan pada lokasi penugasannya.</p></div>';
+   return;
+ }
  const chkId = document.getElementById('reportChecklistSelect').value;
  const statusFilter = document.getElementById('reportStatusFilter').value;
  
@@ -1952,8 +1980,33 @@
    } catch(e){ showToast(e.message || 'Setup Admin gagal', 'error'); }
  }
 
- function openAdminUserModal(){ document.getElementById('adminUserModal').classList.remove('hidden'); }
- function closeAdminUserModal(){ document.getElementById('adminUserModal').classList.add('hidden'); }
+ let editingCloudUserId = null;
+ let parsedUsersFromPdf = [];
+ function getAssignedLocationIds(){
+   const raw=String(currentAssignedLoc||'ALL').trim();
+   if(!raw||raw.toUpperCase()==='ALL')return ['ALL'];
+   return raw.split(/[,;|]/).map(x=>x.trim()).filter(Boolean);
+ }
+ function isLocationAllowedForCurrentUser(locId){
+   if(currentUserRole!=='Auditee')return true;
+   const ids=getAssignedLocationIds(); return ids.includes('ALL')||ids.includes(locId);
+ }
+ function openAdminUserModal(userId=null){
+   editingCloudUserId=userId||null;
+   const u=userId?usersData.find(x=>x.id===userId):null;
+   document.getElementById('adminUserModalTitle').innerText=u?'Edit Akun User':'Tambah Akun User';
+   document.getElementById('adminUserModalHint').innerText=u?'Ubah nama, nomor HP, role, lokasi penugasan, atau password.':'Buat satu akun pengguna baru.';
+   document.getElementById('newUserName').value=u?.name||'';
+   document.getElementById('newUserPhone').value=u?.phone||'';
+   document.getElementById('newUserPassword').value='';
+   document.getElementById('newUserRole').value=u?.role||'Management';
+   document.getElementById('newUserAssignedLoc').value=u?.assignedLoc||'ALL';
+   document.getElementById('editPasswordHint').classList.toggle('hidden',!u);
+   document.getElementById('bulkUserImportBtn').classList.toggle('hidden',!!u);
+   document.getElementById('saveCloudUserBtn').innerText=u?'Simpan Perubahan':'Buat Akun';
+   document.getElementById('adminUserModal').classList.remove('hidden');
+ }
+ function closeAdminUserModal(){ document.getElementById('adminUserModal').classList.add('hidden'); editingCloudUserId=null; }
  async function invokeFunctionDetailed(name, body){
    const { data, error } = await sb.functions.invoke(name, { body });
    if (error) {
@@ -1966,8 +2019,44 @@
  }
  async function saveCloudUser(){
    const name=document.getElementById('newUserName').value.trim(),phone=normalizeIndoPhone(document.getElementById('newUserPhone').value.trim()),password=document.getElementById('newUserPassword').value,role=document.getElementById('newUserRole').value,assigned=document.getElementById('newUserAssignedLoc').value.trim()||'ALL';
-   if(!name||!phone){showToast('Nama dan nomor HP wajib diisi.','error');return;}if(!/^\+\d{9,15}$/.test(phone)){showToast('Format nomor HP tidak valid. Gunakan contoh 081234567890.','error');return;}if(password.length<6){showToast('Password minimal 6 karakter.','error');return;}
-   try{await invokeFunctionDetailed('audit5s-user-admin',{action:'create',full_name:name,phone,password,role,assigned_loc:assigned});closeAdminUserModal();['newUserName','newUserPhone','newUserPassword'].forEach(id=>document.getElementById(id).value='');document.getElementById('newUserAssignedLoc').value='ALL';showToast(`Akun ${role} berhasil dibuat`,'success');await renderAdminUserTable();}catch(e){showToast(e.message||'Gagal membuat akun','error');}
+   if(!name||!phone){showToast('Nama dan nomor HP wajib diisi.','error');return;}if(!/^\+\d{9,15}$/.test(phone)){showToast('Format nomor HP tidak valid. Gunakan contoh 081234567890.','error');return;}if(!editingCloudUserId && password.length<6){showToast('Password minimal 6 karakter.','error');return;}if(editingCloudUserId && password && password.length<6){showToast('Password baru minimal 6 karakter.','error');return;}
+   try{
+     if(editingCloudUserId){await invokeFunctionDetailed('audit5s-user-admin',{action:'update',user_id:editingCloudUserId,full_name:name,phone,password,role,assigned_loc:assigned});showToast('Data user berhasil diperbarui. User perlu login ulang jika role/lokasi berubah.','success');}
+     else {await invokeFunctionDetailed('audit5s-user-admin',{action:'create',full_name:name,phone,password,role,assigned_loc:assigned});showToast(`Akun ${role} berhasil dibuat`,'success');}
+     closeAdminUserModal();await renderAdminUserTable();
+   }catch(e){showToast(e.message||'Gagal menyimpan akun','error');}
+ }
+
+ function openAdminUserPdfModal(){
+   parsedUsersFromPdf=[];const i=document.getElementById('adminUserPdfInput');if(i)i.value='';
+   document.getElementById('pdfUserPreviewContainer').classList.add('hidden');document.getElementById('btnImportUserPdf').disabled=true;document.getElementById('pdfUserImportResult').classList.add('hidden');document.getElementById('adminUserPdfModal').classList.remove('hidden');
+ }
+ function closeAdminUserPdfModal(){document.getElementById('adminUserPdfModal').classList.add('hidden');}
+ function normalizeImportedRole(v){const x=String(v||'').trim().toLowerCase();if(x.includes('admin'))return'Admin';if(x.includes('manage'))return'Management';if(x.includes('auditor'))return'Auditor';if(x.includes('auditee'))return'Auditee';return String(v||'Auditee').trim()||'Auditee';}
+ function parseUserPdfFallback(lines){
+   const out=[];for(const raw of lines){const line=String(raw||'').replace(/\s+/g,' ').trim();if(!line||/nama.*(nomor|hp).*password.*role/i.test(line))continue;
+     const m=line.match(/^\s*(?:\d+[.)]?\s+)?(.+?)\s+(0?8\d{8,13}|\+?62\d{8,13})\s+(\S{6,})\s+(Admin|Management|Auditor|Auditee)\s+([\w,;|.-]+)\s*$/i);
+     if(m)out.push({name:m[1].trim(),phone:m[2],password:m[3],role:normalizeImportedRole(m[4]),assigned_loc:m[5].trim()||'ALL'});
+   }return out;
+ }
+ async function handleAdminUserPdfSelect(e){
+   const file=e.target.files?.[0];if(!file)return;if(file.type!=='application/pdf'){showToast('File harus PDF.','error');return;}
+   document.getElementById('pdfUserLoading').classList.remove('hidden');
+   try{const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise,rows=[],fallback=[];
+     for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p),tc=await page.getTextContent(),vp=page.getViewport({scale:1});const items=tc.items.map(x=>({text:String(x.str||'').trim(),y:x.transform[5],x:x.transform[4]})).filter(x=>x.text);items.sort((a,b)=>Math.abs(b.y-a.y)>4?b.y-a.y:a.x-b.x);let groups=[],row=[],lastY=null;for(const it of items){if(lastY===null||Math.abs(it.y-lastY)<4)row.push(it);else{groups.push(row);row=[it]}lastY=it.y;}if(row.length)groups.push(row);
+       for(const g0 of groups){const g=g0.sort((a,b)=>a.x-b.x);fallback.push(g.map(x=>x.text).join(' ').trim());const cols=['','','','','',''];for(const it of g){const r=it.x/Math.max(vp.width,1);const ci=r<0.08?0:r<0.34?1:r<0.52?2:r<0.68?3:r<0.82?4:5;cols[ci]=(cols[ci]+' '+it.text).trim();}const joined=cols.join(' ').toLowerCase();if(/nama/.test(joined)&&/(hp|phone|nomor)/.test(joined)&&/role/.test(joined))continue;const name=cols[1].trim(),phone=cols[2].trim(),password=cols[3].trim(),role=normalizeImportedRole(cols[4]),assigned=cols[5].trim()||'ALL';if(name&&phone&&password&&['Admin','Management','Auditor','Auditee'].includes(role))rows.push({name,phone,password,role,assigned_loc:assigned});}
+     }
+     parsedUsersFromPdf=(rows.length?rows:parseUserPdfFallback(fallback)).map(u=>({...u,phone:String(u.phone||'').trim(),assigned_loc:String(u.assigned_loc||'ALL').trim()||'ALL'}));renderUserPdfPreview();if(!parsedUsersFromPdf.length)showToast('Data user tidak terdeteksi. Gunakan tabel: No | Nama | Nomor HP | Password | Role | ID Lokasi.','error');
+   }catch(err){console.error(err);showToast('PDF user gagal dibaca: '+(err.message||err),'error');}finally{document.getElementById('pdfUserLoading').classList.add('hidden');}
+ }
+ function renderUserPdfPreview(){
+   const tb=document.getElementById('pdfUserPreviewTable');tb.innerHTML=parsedUsersFromPdf.map((u,i)=>`<tr><td class="p-2"><input value="${escapeHtml(u.name)}" onchange="parsedUsersFromPdf[${i}].name=this.value" class="w-full p-1.5 border rounded-lg"></td><td class="p-2"><input value="${escapeHtml(u.phone)}" onchange="parsedUsersFromPdf[${i}].phone=this.value" class="w-full p-1.5 border rounded-lg"></td><td class="p-2"><input value="${escapeHtml(u.password)}" onchange="parsedUsersFromPdf[${i}].password=this.value" class="w-full p-1.5 border rounded-lg"></td><td class="p-2"><select onchange="parsedUsersFromPdf[${i}].role=this.value" class="w-full p-1.5 border rounded-lg">${['Admin','Management','Auditor','Auditee'].map(r=>`<option ${u.role===r?'selected':''}>${r}</option>`).join('')}</select></td><td class="p-2"><input value="${escapeHtml(u.assigned_loc||'ALL')}" onchange="parsedUsersFromPdf[${i}].assigned_loc=this.value" class="w-full p-1.5 border rounded-lg"></td><td class="p-2 text-center"><button onclick="parsedUsersFromPdf.splice(${i},1);renderUserPdfPreview()" class="text-rose-500"><i class="fas fa-trash"></i></button></td></tr>`).join('');document.getElementById('parsedUserCount').innerText=parsedUsersFromPdf.length;document.getElementById('pdfUserPreviewContainer').classList.remove('hidden');document.getElementById('btnImportUserPdf').disabled=!parsedUsersFromPdf.length;
+ }
+ async function importParsedUsersPdf(){
+   if(!parsedUsersFromPdf.length)return;const invalid=parsedUsersFromPdf.findIndex(u=>!u.name||!/^\+?\d{9,15}$/.test(normalizeIndoPhone(u.phone))||String(u.password||'').length<6||!['Admin','Management','Auditor','Auditee'].includes(u.role));if(invalid>=0){showToast(`Periksa data user pada baris ${invalid+1}.`,'error');return;}
+   const btn=document.getElementById('btnImportUserPdf');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1.5"></i>Membuat akun...';
+   try{const users=parsedUsersFromPdf.map(u=>({full_name:u.name,phone:normalizeIndoPhone(u.phone),password:u.password,role:u.role,assigned_loc:u.assigned_loc||'ALL'}));const data=await invokeFunctionDetailed('audit5s-user-admin',{action:'batch_create',users});const box=document.getElementById('pdfUserImportResult');box.classList.remove('hidden');box.className='mt-3 p-3 rounded-xl text-xs '+(data.failed?'bg-amber-50 text-amber-800 border border-amber-200':'bg-emerald-50 text-emerald-800 border border-emerald-200');const failed=(data.results||[]).filter(r=>!r.ok);box.innerHTML=`<b>${data.success||0} akun berhasil dibuat</b>${data.failed?`, ${data.failed} gagal.`:'.'}${failed.length?'<div class="mt-2 space-y-1">'+failed.map(r=>`Baris ${r.row}: ${escapeHtml(r.error||'Gagal')}`).join('<br>')+'</div>':''}`;await renderAdminUserTable();if(!data.failed)showToast(`${data.success} akun berhasil dibuat dari PDF.`,'success');}
+   catch(e){showToast(e.message||'Import user gagal','error');}finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-users mr-1.5"></i>Buat Semua Akun';}
  }
 
  async function renderAdminUserTable(){
@@ -1976,7 +2065,7 @@
    try {
      const data = await invokeFunctionDetailed('audit5s-user-admin', {action:'list'});
      usersData = (data.users || []).map(u => ({ id:u.user_id, phone:u.phone||'', email:u.email||'', name:u.full_name, role:u.role, assignedLoc:u.assigned_loc }));
-     tbody.innerHTML = usersData.length ? usersData.map(u => `<tr class="hover:bg-slate-50"><td class="p-3.5"><div class="font-bold text-slate-800">${u.name}</div><div class="text-xs ${u.phone?'text-emerald-600':'text-amber-600'}">${u.phone || 'Belum ada nomor HP (akun legacy)'}</div></td><td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td><td class="p-3.5 text-xs text-slate-600">${u.assignedLoc}</td><td class="p-3.5 text-center whitespace-nowrap"><button onclick="updateCloudUserPhone('${u.id}','${u.phone||''}')" class="text-blue-500 hover:text-blue-700 p-1.5" title="Set/Ubah Nomor HP"><i class="fas fa-mobile-alt"></i></button><button onclick="deleteCloudUser('${u.id}')" class="text-rose-500 hover:text-rose-700 p-1.5" title="Hapus akun"><i class="fas fa-trash"></i></button></td></tr>`).join('') : '<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada akun.</td></tr>';
+     tbody.innerHTML = usersData.length ? usersData.map(u => `<tr class="hover:bg-slate-50"><td class="p-3.5"><div class="font-bold text-slate-800">${u.name}</div><div class="text-xs ${u.phone?'text-emerald-600':'text-amber-600'}">${u.phone || 'Belum ada nomor HP (akun legacy)'}</div></td><td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td><td class="p-3.5 text-xs text-slate-600">${u.assignedLoc}</td><td class="p-3.5 text-center whitespace-nowrap"><button onclick="openAdminUserModal('${u.id}')" class="text-blue-500 hover:text-blue-700 p-1.5" title="Edit user"><i class="fas fa-pen"></i></button><button onclick="deleteCloudUser('${u.id}')" class="text-rose-500 hover:text-rose-700 p-1.5" title="Hapus akun"><i class="fas fa-trash"></i></button></td></tr>`).join('') : '<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada akun.</td></tr>';
    } catch(e){ tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-rose-500">${e.message}</td></tr>`; }
  }
  async function deleteCloudUser(userId){
