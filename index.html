@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>Audit 5S</title>
+ 
+ <!-- Tailwind CSS CDN -->
+ <script src="https://cdn.tailwindcss.com"></script>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+ 
+ <!-- HTML2PDF & PDF.js CDN -->
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+ <script>
+ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+ </script>
+ 
+ <script>
+ tailwind.config = {
+ theme: {
+ extend: {
+ fontFamily: { sans: ['Inter', 'sans-serif'], },
+ colors: {
+ brand: { 
+ 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 
+ 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 
+ 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' 
+ }
+ }
+ }
+ }
+ }
+ </script>
+ 
+ <style>
+ body { font-family: 'Inter', sans-serif; }
+ ::-webkit-scrollbar { width: 6px; height: 6px; }
+ ::-webkit-scrollbar-track { background: transparent; }
+ ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+ ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+ @media print {
+ body * { visibility: hidden; }
+ #reportCard, #reportCard * { visibility: visible; }
+ #reportCard { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; margin-top: 0 !important; }
+ #reportActionButtons, #reportFiltersContainer { display: none !important; }
+ * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+ .break-inside-avoid { page-break-inside: avoid; break-inside: avoid; }
+ }
+
+ .radial-progress {
+ position: relative; width: 70px; height: 70px; border-radius: 50%;
+ background: conic-gradient(currentColor var(--progress), #e2e8f0 0deg);
+ display: flex; align-items: center; justify-content: center;
+ }
+ .radial-progress::before {
+ content: ""; position: absolute; inset: 6px; background: white; border-radius: 50%;
+ }
+ .radial-progress span { position: relative; font-weight: 700; font-size: 0.9rem; color: #334155; }
+ 
+ .img-zoomable {
+ cursor: zoom-in;
+ transition: transform 0.2s ease, box-shadow 0.2s ease;
+ }
+ .img-zoomable:hover {
+ transform: scale(1.02);
+ box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+ }
+ </style>
+ <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+ <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40">
+ <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+ <div class="flex justify-between h-16 items-center">
+ <div class="flex items-center gap-3 cursor-pointer" onclick="backToDashboard()">
+ <div class="bg-brand-500 text-white p-2.5 rounded-xl shadow-sm">
+ <i class="fas fa-clipboard-check text-xl"></i>
+ </div>
+ <div>
+ <h1 class="text-xl font-bold text-slate-800 leading-tight">Audit 5S</h1>
+ <p class="text-xs text-slate-500 font-medium">Platform Inspeksi & Audit 5S</p>
+ </div>
+ </div>
+ 
+ <div id="userInfo" class="hidden flex items-center gap-4">
+ <div class="text-right hidden sm:block">
+ <div class="text-sm font-semibold text-slate-700" id="userNameDisplay">Masuk sebagai</div>
+ <div id="userRoleDisplay" class="text-xs text-brand-600 font-medium bg-brand-50 inline-block px-2 py-0.5 rounded border border-brand-100">Role</div>
+ </div>
+ <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-full h-10 w-10 flex items-center justify-center" title="Keluar">
+ <i class="fas fa-sign-out-alt"></i>
+ </button>
+ </div>
+ </div>
+ </div>
+ </nav>
+
+ <main class="flex-grow flex flex-col items-center p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
+ 
+ <!-- LOGIN SECTION -->
+ <div id="loginSection" class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 mt-6 md:mt-12">
+ <div class="bg-gradient-to-br from-brand-50 to-brand-100 p-8 text-center border-b border-brand-100">
+ <div class="bg-white w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-brand-500 shadow-sm mb-4"><i class="fas fa-shield-alt text-3xl"></i></div>
+ <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Audit 5S</h2>
+ <p class="text-slate-500 text-sm mt-1 font-medium">Login akun untuk mengakses sistem multi-device</p>
+ </div>
+ <form class="p-8 space-y-4" onsubmit="event.preventDefault(); authLogin();">
+ <div><label class="block text-xs font-semibold text-slate-600 mb-1">Nomor HP atau Email</label><input type="text" id="loginEmail" autocomplete="username" required placeholder="08xxxxxxxxxx / +62xxxxxxxxxx / nama@email.com" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none"><p class="text-[11px] text-slate-400 mt-1">Akun baru menggunakan nomor HP. Akun legacy tetap dapat login menggunakan email.</p></div>
+ <div><label class="block text-xs font-semibold text-slate-600 mb-1">Password</label><input type="password" id="loginPassword" autocomplete="current-password" required class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none"></div>
+ <button id="loginBtn" type="submit" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-bold shadow-sm"><i class="fas fa-sign-in-alt mr-2"></i>Masuk</button>
+ <div class="pt-4 border-t border-slate-100 flex items-center justify-center gap-4 text-center"><button type="button" onclick="openAdminRecoveryModal()" class="text-xs text-amber-600 hover:text-amber-700 font-semibold"><i class="fas fa-unlock-alt mr-1"></i>Pemulihan Admin</button><button type="button" onclick="openBootstrapModal()" class="text-xs text-slate-400 hover:text-brand-600 font-semibold"><i class="fas fa-key mr-1"></i>Setup Admin Pertama</button></div>
+ </form>
+ </div>
+
+ <!-- ADMIN RECOVERY MODAL -->
+ <div id="adminRecoveryModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+ <div class="p-6 border-b border-slate-100"><h3 class="text-lg font-bold text-slate-800"><i class="fas fa-unlock-alt text-amber-500 mr-2"></i>Pemulihan Admin Legacy</h3><p class="text-xs text-slate-500 mt-1">Gunakan untuk menetapkan password baru pada akun Admin email lama.</p></div>
+ <div class="p-6 space-y-3">
+ <input id="recoveryEmail" type="email" placeholder="Email Admin lama" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="recoveryPassword" type="password" placeholder="Password baru (minimal 6 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="recoveryCode" type="password" placeholder="Kode pemulihan satu kali" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <p class="text-[11px] text-slate-400">Kode pemulihan berlaku satu kali dan kedaluwarsa otomatis.</p>
+ </div>
+ <div class="flex border-t border-slate-100"><button onclick="closeAdminRecoveryModal()" class="flex-1 py-3 text-slate-500 font-semibold hover:bg-slate-50">Batal</button><button onclick="recoverAdminPassword()" class="flex-1 py-3 text-amber-600 font-bold hover:bg-amber-50 border-l border-slate-100">Reset Password</button></div>
+ </div>
+ </div>
+
+ <!-- BOOTSTRAP ADMIN MODAL -->
+ <div id="bootstrapModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+ <div class="p-6 border-b border-slate-100"><h3 class="text-lg font-bold text-slate-800"><i class="fas fa-user-shield text-brand-500 mr-2"></i>Setup Admin Pertama</h3><p class="text-xs text-slate-500 mt-1">Dipakai satu kali untuk membuat akun administrator awal.</p></div>
+ <div class="p-6 space-y-3">
+ <input id="bootstrapCode" type="password" placeholder="Kode aktivasi" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="bootstrapName" type="text" placeholder="Nama Administrator" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="bootstrapEmail" type="tel" placeholder="Nomor HP Administrator, contoh 081234567890" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="bootstrapPassword" type="password" placeholder="Password (minimal 8 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ </div>
+ <div class="flex border-t border-slate-100"><button onclick="closeBootstrapModal()" class="flex-1 py-3 text-slate-500 font-semibold">Batal</button><button onclick="bootstrapAdmin()" class="flex-1 py-3 text-brand-600 font-bold border-l border-slate-100">Buat Admin</button></div>
+ </div></div>
+
+ <!-- MANAGEMENT DASHBOARD -->
+ <div id="managementDashboard" class="hidden w-full max-w-5xl space-y-6 mt-4">
+ <!-- Executive Summary Cards -->
+ <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+ <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+ <div class="flex items-center justify-between">
+ <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Target Lokasi</span>
+ <div class="bg-indigo-50 text-indigo-600 w-9 h-9 rounded-xl flex items-center justify-center"><i class="fas fa-building"></i></div>
+ </div>
+ <div class="text-3xl font-extrabold text-slate-800 mt-2" id="mgmtTotalLoc">0</div>
+ </div>
+ <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+ <div class="flex items-center justify-between">
+ <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Sudah Diaudit</span>
+ <div class="bg-emerald-50 text-emerald-600 w-9 h-9 rounded-xl flex items-center justify-center"><i class="fas fa-check-circle"></i></div>
+ </div>
+ <div class="text-3xl font-extrabold text-emerald-600 mt-2" id="mgmtAuditedLoc">0</div>
+ </div>
+ <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+ <div class="flex items-center justify-between">
+ <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Belum Diaudit</span>
+ <div class="bg-amber-50 text-amber-600 w-9 h-9 rounded-xl flex items-center justify-center"><i class="fas fa-clock"></i></div>
+ </div>
+ <div class="text-3xl font-extrabold text-amber-600 mt-2" id="mgmtUnauditedLoc">0</div>
+ </div>
+ <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+ <div class="flex items-center justify-between">
+ <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Rata-rata Progres</span>
+ <div class="bg-blue-50 text-blue-600 w-9 h-9 rounded-xl flex items-center justify-center"><i class="fas fa-chart-line"></i></div>
+ </div>
+ <div class="text-3xl font-extrabold text-blue-600 mt-2" id="mgmtAvgProgress">0%</div>
+ </div>
+ </div>
+
+ <!-- Top-to-Bottom Bar Chart Dashboard -->
+ <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+ <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 border-b border-slate-100 pb-4">
+ <div>
+ <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-chart-bar text-indigo-600 mr-2"></i> Progres Tindak Lanjut Per Lokasi</h2>
+ <p class="text-xs text-slate-500 mt-1">Persentase perbaikan temuan yang disetujui (Approved) disusun dari lokasi atas ke bawah.</p>
+ </div>
+ <button onclick="openReportHistory()" class="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-100 transition-colors">
+ <i class="fas fa-file-alt mr-1.5"></i> Lihat Detail Laporan
+ </button>
+ </div>
+
+ <!-- Modern Stacked Vertical Bar List -->
+ <div id="mgmtBarChartList" class="space-y-4">
+ <!-- Populated via JS -->
+ </div>
+ </div>
+ </div>
+
+ <!-- ADMIN DASHBOARD -->
+ <div id="adminDashboard" class="hidden w-full max-w-5xl mt-4">
+ <div class="flex flex-wrap gap-3 mb-6">
+ <button onclick="switchAdminTab('loc')" id="tabAdminLoc" class="px-5 py-2.5 bg-slate-800 text-white rounded-xl font-semibold shadow-sm transition-colors text-sm">Kelola Lokasi</button>
+ <button onclick="switchAdminTab('form')" id="tabAdminForm" class="px-5 py-2.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-semibold shadow-sm transition-colors text-sm">Kelola Form Checklist</button>
+ <button onclick="switchAdminTab('user')" id="tabAdminUser" class="px-5 py-2.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-semibold shadow-sm transition-colors text-sm">User Management</button>
+ </div>
+
+ <!-- TAB 1: KELOLA LOKASI -->
+ <div id="panelAdminLoc" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+ <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+ <div>
+ <h2 class="text-xl font-bold text-slate-800">Daftar Lokasi Target</h2>
+ <p class="text-xs text-slate-500 mt-0.5">Kelola lokasi yang diizinkan untuk diaudit</p>
+ </div>
+ <div class="flex flex-wrap gap-2">
+ <button onclick="openAdminLocPdfModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"><i class="fas fa-file-pdf mr-1.5"></i> Upload PDF Lokasi</button>
+ <button onclick="openAdminLocModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-plus mr-1"></i> Tambah Lokasi</button>
+ </div>
+ </div>
+ <div class="overflow-x-auto">
+ <table class="w-full text-left border-collapse">
+ <thead>
+ <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+ <th class="p-3.5 rounded-tl-xl font-bold">ID Lokasi</th>
+ <th class="p-3.5 font-bold">Nama Lokasi</th>
+ <th class="p-3.5 font-bold">Form Diizinkan</th>
+ <th class="p-3.5 rounded-tr-xl font-bold w-24 text-center">Aksi</th>
+ </tr>
+ </thead>
+ <tbody id="adminLocTableBody" class="text-sm divide-y divide-slate-100"></tbody>
+ </table>
+ </div>
+ </div>
+
+ <!-- TAB 2: KELOLA FORM CHECKLIST -->
+ <div id="panelAdminForm" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+ <div class="flex justify-between items-center mb-6">
+ <div>
+ <h2 class="text-xl font-bold text-slate-800">Daftar Form Checklist</h2>
+ <p class="text-xs text-slate-500 mt-0.5">Tambah & atur butir pertanyaan checklist atau unggah PDF</p>
+ </div>
+ <div class="flex flex-wrap gap-2">
+<button onclick="openAdminFormPdfModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"><i class="fas fa-file-pdf mr-1.5"></i> Upload PDF Form</button>
+<button onclick="openAdminFormModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-plus mr-1"></i> Form Baru</button>
+</div>
+ </div>
+ <div id="adminFormsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+ </div>
+
+ <!-- TAB 3: USER MANAGEMENT -->
+ <div id="panelAdminUser" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+ <div class="flex justify-between items-center mb-6">
+ <div>
+ <h2 class="text-xl font-bold text-slate-800">User Management</h2>
+ <p class="text-xs text-slate-500 mt-0.5">Daftar akun pengguna sistem</p>
+ </div>
+ <button onclick="openAdminUserModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-user-plus mr-1"></i> Tambah User</button>
+ </div>
+ <div class="overflow-x-auto">
+ <table class="w-full text-left border-collapse">
+ <thead>
+ <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-200">
+ <th class="p-3.5 rounded-tl-xl font-bold">Nama User</th>
+ <th class="p-3.5 font-bold">Peran (Role)</th>
+ <th class="p-3.5 font-bold">Penugasan Lokasi</th>
+ <th class="p-3.5 rounded-tr-xl font-bold w-24 text-center">Aksi</th>
+ </tr>
+ </thead>
+ <tbody id="adminUserTableBody" class="text-sm divide-y divide-slate-100"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+
+ <!-- AUDITOR DASHBOARD -->
+ <div id="auditorDashboard" class="hidden w-full max-w-5xl space-y-6 mt-4">
+ <!-- Statistik Persentase Selesai (Hanya Hitung Approved) -->
+ <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+ <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
+ <div>
+ <h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chart-pie text-brand-500 mr-2"></i> Statistik Tindak Lanjut Selesai (Approved)</h2>
+ <p class="text-xs text-slate-500 mt-1">Hanya menghitung temuan yang sudah disetujui (Approved) oleh Auditor.</p>
+ </div>
+ <div class="w-full md:w-auto">
+ <select id="statsLocFilter" onchange="updateAuditorStats()" class="w-full md:w-48 p-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium">
+ <option value="ALL">Semua Lokasi</option>
+ </select>
+ </div>
+ </div>
+ <div id="statsContainer" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4"></div>
+ </div>
+
+ <!-- Tiga Menu Utama Auditor -->
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+ <button onclick="openNewAudit()" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-brand-500 hover:shadow-md transition-all group text-left flex flex-col justify-between">
+ <div>
+ <div class="bg-brand-50 w-12 h-12 rounded-xl flex items-center justify-center text-brand-500 mb-4 group-hover:bg-brand-500 group-hover:text-white transition-colors"><i class="fas fa-clipboard-check text-xl"></i></div>
+ <h3 class="text-lg font-bold text-slate-800 mb-1">Inspeksi Baru</h3>
+ <p class="text-slate-500 text-xs leading-relaxed">Mulai penilaian di lokasi dan form pilihan.</p>
+ </div>
+ <span class="mt-4 text-xs font-bold text-brand-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">Mulai <i class="fas fa-arrow-right text-[10px]"></i></span>
+ </button>
+
+ <button onclick="openApprovalMenu()" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-amber-500 hover:shadow-md transition-all group text-left flex flex-col justify-between relative overflow-hidden">
+ <div id="pendingBadgeCard" class="hidden absolute top-4 right-4 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">0 Pending</div>
+ <div>
+ <div class="bg-amber-50 w-12 h-12 rounded-xl flex items-center justify-center text-amber-600 mb-4 group-hover:bg-amber-500 group-hover:text-white transition-colors"><i class="fas fa-check-double text-xl"></i></div>
+ <h3 class="text-lg font-bold text-slate-800 mb-1">Approval Tindak Lanjut</h3>
+ <p class="text-slate-500 text-xs leading-relaxed">Tinjau & setujui perbaikan yang dikirim Auditee.</p>
+ </div>
+ <span class="mt-4 text-xs font-bold text-amber-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">Proses Approval <i class="fas fa-arrow-right text-[10px]"></i></span>
+ </button>
+
+ <button onclick="openReportHistory()" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:border-slate-800 hover:shadow-md transition-all group text-left flex flex-col justify-between">
+ <div>
+ <div class="bg-slate-50 w-12 h-12 rounded-xl flex items-center justify-center text-slate-600 mb-4 group-hover:bg-slate-800 group-hover:text-white transition-colors"><i class="fas fa-file-pdf text-xl"></i></div>
+ <h3 class="text-lg font-bold text-slate-800 mb-1">Riwayat & Cetak PDF</h3>
+ <p class="text-slate-500 text-xs leading-relaxed">Lihat rekap seluruh hasil audit dan unduh laporan.</p>
+ </div>
+ <span class="mt-4 text-xs font-bold text-slate-700 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">Lihat Rekap <i class="fas fa-arrow-right text-[10px]"></i></span>
+ </button>
+ </div>
+ </div>
+
+ <!-- SELECTION SECTION -->
+ <div id="selectionSection" class="hidden w-full max-w-4xl mt-4">
+ <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
+ <h2 class="text-2xl font-bold text-slate-800 mb-2">Pilih Lokasi & Form</h2>
+ <p class="text-slate-500 text-sm mb-6">Pilih lokasi target dan jenis form checklist yang akan diperiksa.</p>
+ 
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+ <div>
+ <h3 class="font-semibold text-slate-700 mb-3 border-b pb-2 flex items-center gap-2"><span class="bg-slate-100 text-slate-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">1</span> Pilih Lokasi</h3>
+ <div id="locationList" class="space-y-3"></div>
+ </div>
+ <div>
+ <h3 class="font-semibold text-slate-700 mb-3 border-b pb-2 flex items-center gap-2"><span class="bg-slate-100 text-slate-600 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">2</span> Pilih Form</h3>
+ <div id="checklistList" class="space-y-3">
+ <div class="text-slate-400 text-sm italic p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">Silakan pilih lokasi terlebih dahulu</div>
+ </div>
+ </div>
+ </div>
+ 
+ <div class="mt-8 border-t border-slate-100 pt-5">
+ <button onclick="backToDashboard()" class="text-sm text-slate-500 hover:text-slate-700 inline-flex items-center gap-1 font-semibold transition-colors"><i class="fas fa-arrow-left"></i> Kembali ke Menu Utama</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- AUDITOR INSPECTION SECTION -->
+ <div id="auditorSection" class="hidden w-full max-w-5xl mt-4">
+ <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-6">
+ <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+ <div>
+ <button onclick="backToSelection()" class="text-xs text-brand-600 hover:text-brand-700 mb-2 inline-flex items-center gap-1 font-bold uppercase tracking-wider"><i class="fas fa-arrow-left"></i> Kembali Pilih Form</button>
+ <h2 class="text-2xl font-bold text-slate-800" id="auditorFormTitle">Form Inspeksi</h2>
+ <div class="flex flex-wrap items-center gap-2 mt-2">
+ <span class="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-xs font-semibold border" id="auditorLocBadge"><i class="fas fa-map-marker-alt"></i> Lokasi</span>
+ <span class="px-2.5 py-1 bg-brand-50 text-brand-700 rounded-md text-xs font-semibold border border-brand-100" id="auditorChecklistBadge"><i class="fas fa-file-alt"></i> Form</span>
+ </div>
+ </div>
+ <div class="text-center bg-slate-50 p-4 rounded-xl border border-slate-200 min-w-[120px]">
+ <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Total Temuan</div>
+ <div class="text-4xl font-bold text-slate-400 leading-none" id="totalIssuesCounter">0</div>
+ </div>
+ </div>
+
+ <!-- Kontainer Checklist Standard -->
+ <div id="checklistContainer" class="space-y-8 mt-8"></div>
+ 
+ <!-- Kontainer Temuan Khusus -->
+ <div id="temuanKhususContainer" class="hidden mt-8">
+ <div class="bg-purple-50 p-6 rounded-2xl border border-purple-100 mb-6">
+ <h3 class="font-bold text-purple-800 mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-lg"></i> Tambah Temuan Khusus Baru</h3>
+ <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+ <div>
+ <label class="block text-xs font-bold text-purple-700 mb-1">Kategori Tindakan</label>
+ <select id="tkCategory" class="w-full p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none text-sm font-medium bg-white">
+ <option value="Penataan">Penataan</option>
+ <option value="Pemilahan">Pemilahan</option>
+ <option value="Perbaikan/Renovasi">Perbaikan / Renovasi</option>
+ <option value="Pengecatan">Pengecatan</option>
+ <option value="Labelisasi">Labelisasi</option>
+ </select>
+ </div>
+ <div>
+ <label class="block text-xs font-bold text-purple-700 mb-1">Detail Temuan / Instruksi</label>
+ <input type="text" id="tkDesc" placeholder="Ketikkan instruksi temuan di sini..." class="w-full p-2.5 rounded-xl border border-purple-200 focus:ring-2 focus:ring-purple-500 outline-none text-sm bg-white">
+ </div>
+ </div>
+ <button onclick="addTemuanKhususItem()" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl shadow-sm text-sm transition-colors flex items-center gap-2">
+ <i class="fas fa-plus"></i> Masukkan ke Daftar Temuan
+ </button>
+ </div>
+ <div id="tkList" class="space-y-4"></div>
+ </div>
+
+ <div class="mt-10 flex justify-end pt-6 border-t border-slate-100">
+ <button onclick="submitAudit()" class="px-8 py-3 w-full md:w-auto bg-brand-500 hover:bg-brand-600 text-white rounded-xl shadow-md transition-all font-semibold flex items-center justify-center gap-2 text-base">
+ <i class="fas fa-save"></i> Simpan Hasil Inspeksi
+ </button>
+ </div>
+ </div>
+ </div>
+
+ <!-- REPORT & APPROVAL SECTION -->
+ <div id="reportSection" class="hidden w-full max-w-5xl mt-4">
+ <!-- Header Filter Section -->
+ <div id="reportFiltersContainer" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-6">
+ <div id="reportBackBtn" class="mb-4 pb-4 border-b border-slate-100 hidden">
+ <button onclick="backToDashboard()" class="text-sm text-slate-500 hover:text-slate-700 inline-flex items-center gap-1 font-semibold transition-colors"><i class="fas fa-arrow-left"></i> Kembali ke Menu Utama</button>
+ </div>
+ <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+ <div>
+ <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5"><i class="fas fa-map-marker-alt text-slate-400 mr-1"></i> Pilih Lokasi</label>
+ <select id="reportLocSelect" onchange="updateReportChecklistOptions()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm font-medium"></select>
+ </div>
+ <div>
+ <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5"><i class="fas fa-file-alt text-slate-400 mr-1"></i> Jenis Form</label>
+ <select id="reportChecklistSelect" onchange="loadReport()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm font-medium"></select>
+ </div>
+ <div id="statusFilterDiv">
+ <label class="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5"><i class="fas fa-filter text-slate-400 mr-1"></i> Filter Status Hasil</label>
+ <select id="reportStatusFilter" onchange="loadReport()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none text-sm font-medium">
+ <option value="ALL">Semua Hasil (Sesuai & Temuan)</option>
+ <option value="ISSUES_ONLY">Hanya Belum Sesuai (Temuan)</option>
+ <option value="COMPLIANT_ONLY">Hanya Sesuai</option>
+ </select>
+ </div>
+ </div>
+ </div>
+
+ <!-- Report Card Container -->
+ <div id="reportCard" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+ <div class="bg-gradient-to-r from-slate-50 to-white p-6 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+ <div>
+ <h2 class="text-2xl font-bold text-slate-800" id="reportTitleText">Laporan Hasil Audit</h2>
+ <span class="text-slate-500 text-sm flex items-center gap-1.5 mt-1.5 font-medium"><i class="far fa-calendar-alt text-slate-400"></i> Tanggal Audit: <span id="auditDate">--</span></span>
+ </div>
+ <div class="flex gap-2" id="reportActionButtons">
+ <button id="btnExportPdf" onclick="exportToPDF()" class="px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white rounded-xl text-sm font-bold transition-colors shadow-sm"><i class="fas fa-file-pdf mr-1.5"></i> Cetak PDF</button>
+ </div>
+ </div>
+
+ <div class="p-6 md:p-8">
+ <!-- Summary Counters -->
+ <div id="reportSummaryCards" class="grid grid-cols-2 gap-4 max-w-md mx-auto mb-8">
+ <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 text-center">
+ <p class="text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">Total Sesuai</p>
+ <p class="text-3xl font-extrabold text-emerald-600" id="reportCompliantCount">0</p>
+ </div>
+ <div class="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-center">
+ <p class="text-rose-700 text-xs font-bold uppercase tracking-wider mb-1">Total Temuan</p>
+ <p class="text-3xl font-extrabold text-rose-600" id="reportIssuesCount">0</p>
+ </div>
+ </div>
+
+ <div id="reportContentContainer" class="space-y-4"></div>
+ </div>
+ </div>
+ 
+ <div id="auditeeSaveBtnContainer" class="hidden mt-6 flex justify-end">
+ <button onclick="saveFollowUps()" class="px-8 py-3 w-full md:w-auto bg-slate-800 hover:bg-slate-900 text-white rounded-xl shadow-md transition-all font-semibold flex items-center justify-center gap-2 text-base"><i class="fas fa-paper-plane"></i> Kirim Perbaikan Auditee</button>
+ </div>
+ </div>
+
+ </main>
+
+ <!-- IMAGE LIGHTBOX ZOOM MODAL -->
+ <div id="zoomModal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col justify-between p-4 overflow-hidden">
+ <div class="flex justify-between items-center text-white z-10 bg-slate-900/50 p-3 rounded-2xl backdrop-blur-md border border-white/10">
+ <span class="text-sm font-bold pl-2" id="zoomModalTitle"><i class="fas fa-search-plus mr-2 text-brand-400"></i> Pratinjau Foto Eviden</span>
+ <div class="flex items-center gap-2">
+ <button onclick="adjustZoom(0.2)" class="p-2 hover:bg-white/20 rounded-lg text-white font-bold w-9 h-9 flex items-center justify-center" title="Zoom In"><i class="fas fa-plus"></i></button>
+ <button onclick="adjustZoom(-0.2)" class="p-2 hover:bg-white/20 rounded-lg text-white font-bold w-9 h-9 flex items-center justify-center" title="Zoom Out"><i class="fas fa-minus"></i></button>
+ <button onclick="resetZoom()" class="p-2 hover:bg-white/20 rounded-lg text-white font-bold w-9 h-9 flex items-center justify-center" title="Reset Zoom"><i class="fas fa-sync-alt"></i></button>
+ <button onclick="closeZoomModal()" class="p-2 hover:bg-red-500 rounded-lg text-white font-bold w-9 h-9 flex items-center justify-center ml-2" title="Tutup"><i class="fas fa-times"></i></button>
+ </div>
+ </div>
+ 
+ <div class="flex-grow flex items-center justify-center overflow-hidden relative cursor-grab active:cursor-grabbing p-4" id="zoomContainer">
+ <img id="zoomImage" src="" alt="Eviden Full View" class="max-h-[85vh] max-w-full object-contain rounded-lg transition-transform duration-100 shadow-2xl select-none">
+ </div>
+ 
+ <div class="text-center text-slate-400 text-xs py-2">
+ Gunakan tombol (+) (-) atau scroll mouse untuk mengatur pembesaran foto
+ </div>
+ </div>
+
+ <!-- MODAL LOKASI ADMIN -->
+ <div id="adminLocModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+ <h3 class="text-xl font-bold text-slate-800 mb-4" id="adminLocModalTitle">Tambah Lokasi</h3>
+ <div class="space-y-4">
+ <div>
+ <label class="block text-xs font-bold text-slate-600 mb-1">ID Lokasi (tanpa spasi)</label>
+ <input type="text" id="adminLocId" placeholder="misal: upt_madiun" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-sm">
+ </div>
+ <div>
+ <label class="block text-xs font-bold text-slate-600 mb-1">Nama Lokasi</label>
+ <input type="text" id="adminLocName" placeholder="misal: UPT Madiun" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium text-sm">
+ </div>
+ <div>
+ <label class="block text-xs font-bold text-slate-600 mb-2">Form yang Diizinkan</label>
+ <div id="adminLocFormsContainer" class="bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-48 overflow-y-auto space-y-1"></div>
+ </div>
+ </div>
+ <div class="flex gap-3 mt-6">
+ <button onclick="closeAdminLocModal()" class="flex-1 py-2.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold transition-colors">Batal</button>
+ <button onclick="saveAdminLoc()" class="flex-1 py-2.5 text-white bg-brand-500 hover:bg-brand-600 rounded-xl font-semibold transition-colors">Simpan Lokasi</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- MODAL UPLOAD PDF LOKASI ADMIN -->
+ <div id="adminLocPdfModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+ <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+ <div>
+ <h3 class="text-lg font-bold text-slate-800"><i class="fas fa-file-pdf text-emerald-600 mr-2"></i> Import Lokasi dari File PDF</h3>
+ <p class="text-xs text-slate-500 mt-0.5">Unggah PDF yang berisi daftar ID Lokasi, Nama Lokasi, dan Form yang Diizinkan</p>
+ </div>
+ <button onclick="closeAdminLocPdfModal()" class="text-slate-400 hover:text-slate-600 text-lg p-1"><i class="fas fa-times"></i></button>
+ </div>
+ <div class="p-6 overflow-y-auto space-y-4 flex-grow">
+ <div class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center transition-colors bg-slate-50 hover:bg-emerald-50/30 cursor-pointer" onclick="document.getElementById('adminLocPdfInput').click()">
+ <i class="fas fa-cloud-upload-alt text-4xl text-emerald-500 mb-2"></i>
+ <p class="text-sm font-bold text-slate-700">Klik atau tarik file PDF ke sini</p>
+ <p class="text-xs text-slate-400 mt-1">Format PDF: Kolom/baris memuat ID Lokasi, Nama Lokasi, dan Form Diizinkan</p>
+ <input type="file" id="adminLocPdfInput" accept="application/pdf" class="hidden" onchange="handleAdminLocPdfSelect(event)">
+ </div>
+
+ <div id="pdfLocLoading" class="hidden text-center py-4">
+ <i class="fas fa-spinner fa-spin text-2xl text-emerald-600 mb-2"></i>
+ <p class="text-xs text-slate-600 font-medium">Mengekstrak data lokasi dari PDF...</p>
+ </div>
+
+ <div id="pdfLocPreviewContainer" class="hidden space-y-3">
+ <div class="flex justify-between items-center">
+ <h4 class="text-sm font-bold text-slate-800">Pratinjau Hasil Ekstraksi PDF (<span id="parsedLocCount">0</span> lokasi)</h4>
+ <span class="text-[11px] text-slate-500">Dapat diedit langsung sebelum diimpor</span>
+ </div>
+ <div class="max-h-60 overflow-y-auto border border-slate-200 rounded-xl">
+ <table class="w-full text-left border-collapse text-xs">
+ <thead>
+ <tr class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200 sticky top-0">
+ <th class="p-2.5">ID Lokasi</th>
+ <th class="p-2.5">Nama Lokasi</th>
+ <th class="p-2.5">Form Diizinkan (dipisah koma)</th>
+ </tr>
+ </thead>
+ <tbody id="pdfLocPreviewTable" class="divide-y divide-slate-100 bg-white"></tbody>
+ </table>
+ </div>
+ </div>
+ </div>
+ <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+ <button onclick="closeAdminLocPdfModal()" class="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 rounded-xl text-sm transition-colors">Batal</button>
+ <button id="btnImportLocs" onclick="importParsedLocs()" disabled class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
+ <i class="fas fa-file-import mr-1.5"></i> Impor Ke Daftar Lokasi
+ </button>
+ </div>
+ </div>
+ </div>
+
+
+
+ <!-- MODAL KELOLA FORM MANUAL -->
+ <div id="adminFormModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+   <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+     <div class="p-6 border-b border-slate-100 flex items-center justify-between">
+       <div><h3 id="adminFormModalTitle" class="text-xl font-bold text-slate-800">Form Checklist Baru</h3><p class="text-xs text-slate-500 mt-1">Masukkan satu pertanyaan per baris dengan format <b>Kategori | Pertanyaan</b>.</p></div>
+       <button onclick="closeAdminFormModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+     </div>
+     <div class="p-6 overflow-y-auto space-y-4">
+       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <div><label class="block text-xs font-bold text-slate-600 mb-1">ID Form</label><input id="adminFormId" type="text" placeholder="contoh: form_5s_gudang" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"></div>
+         <div><label class="block text-xs font-bold text-slate-600 mb-1">Judul Form</label><input id="adminFormTitleInput" type="text" placeholder="contoh: Checklist 5S Gudang" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"></div>
+       </div>
+       <div><label class="block text-xs font-bold text-slate-600 mb-1">Daftar Checklist</label><textarea id="adminFormItemsText" rows="14" placeholder="Ringkas | Area kerja bebas barang tidak diperlukan\nRapi | Peralatan tersusun sesuai tempatnya\nResik | Lantai dan meja kerja dalam kondisi bersih" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl outline-none font-mono text-sm"></textarea><p class="text-[11px] text-slate-400 mt-1">Baris tanpa tanda | akan dimasukkan ke kategori “Umum”.</p></div>
+     </div>
+     <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3"><button onclick="closeAdminFormModal()" class="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 rounded-xl text-sm">Batal</button><button onclick="saveAdminForm()" class="px-5 py-2.5 bg-brand-500 text-white rounded-xl text-sm font-bold hover:bg-brand-600"><i class="fas fa-save mr-1.5"></i>Simpan Form</button></div>
+   </div>
+ </div>
+
+ <!-- MODAL IMPORT PDF FORM -->
+ <div id="adminFormPdfModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+   <div class="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+     <div class="p-6 border-b border-slate-100 flex justify-between items-center"><div><h3 class="text-lg font-bold text-slate-800"><i class="fas fa-file-pdf text-emerald-600 mr-2"></i>Import Checklist dari PDF</h3><p class="text-xs text-slate-500 mt-1">Mendukung PDF berbasis teks berbentuk tabel 3 kolom: No | Kategori | Pertanyaan/Kriteria. Hasil dapat diedit sebelum diimpor.</p></div><button onclick="closeAdminFormPdfModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button></div>
+     <div class="p-6 overflow-y-auto space-y-4 flex-grow">
+       <div class="grid grid-cols-1 md:grid-cols-2 gap-4"><input id="pdfFormId" type="text" placeholder="ID Form, contoh: audit_gudang" class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"><input id="pdfFormTitle" type="text" placeholder="Judul Form" class="p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"></div>
+       <label class="block border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-6 text-center cursor-pointer bg-slate-50 hover:bg-emerald-50/30"><i class="fas fa-cloud-upload-alt text-4xl text-emerald-500 mb-2"></i><p class="text-sm font-bold text-slate-700">Klik untuk memilih PDF checklist</p><p class="text-xs text-slate-400 mt-1">Format disarankan: tabel 3 kolom (No | Kategori | Pertanyaan/Kriteria). PDF scan tanpa text layer belum dapat dibaca otomatis.</p><input id="adminFormPdfInput" type="file" accept="application/pdf" class="hidden" onchange="handleAdminFormPdfSelect(event)"></label>
+       <div id="pdfFormLoading" class="hidden text-center py-4"><i class="fas fa-spinner fa-spin text-2xl text-emerald-600"></i><p class="text-xs text-slate-600 mt-2">Mengekstrak checklist...</p></div>
+       <div id="pdfFormPreviewContainer" class="hidden"><div class="flex justify-between items-center mb-2"><h4 class="text-sm font-bold text-slate-800">Pratinjau (<span id="parsedFormCount">0</span> butir)</h4><span class="text-[11px] text-slate-500">Kategori dan pertanyaan dapat diedit</span></div><div class="max-h-72 overflow-y-auto border border-slate-200 rounded-xl"><table class="w-full text-left text-xs"><thead class="sticky top-0 bg-slate-100 text-slate-600"><tr><th class="p-2.5 w-1/4">Kategori</th><th class="p-2.5">Pertanyaan / Kriteria</th><th class="p-2.5 w-12"></th></tr></thead><tbody id="pdfFormPreviewTable" class="divide-y divide-slate-100 bg-white"></tbody></table></div></div>
+     </div>
+     <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3"><button onclick="closeAdminFormPdfModal()" class="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-200 rounded-xl text-sm">Batal</button><button id="btnImportFormPdf" onclick="importParsedFormPdf()" disabled class="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 disabled:opacity-50"><i class="fas fa-file-import mr-1.5"></i>Impor Menjadi Form</button></div>
+   </div>
+ </div>
+
+ <!-- USER ACCOUNT MODAL -->
+ <div id="adminUserModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+ <h3 class="text-xl font-bold text-slate-800 mb-4">Tambah Akun User</h3>
+ <div class="space-y-3">
+ <input id="newUserName" type="text" placeholder="Nama lengkap" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="newUserPhone" type="tel" placeholder="Nomor HP login, contoh 081234567890" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <input id="newUserPassword" type="password" placeholder="Password awal (min. 6 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <select id="newUserRole" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"><option>Management</option><option>Auditor</option><option>Auditee</option><option>Admin</option></select>
+ <input id="newUserAssignedLoc" type="text" value="ALL" placeholder="Lokasi penugasan / ALL" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ </div>
+ <div class="flex gap-3 mt-6"><button onclick="closeAdminUserModal()" class="flex-1 py-2.5 bg-slate-100 rounded-xl font-semibold">Batal</button><button onclick="saveCloudUser()" class="flex-1 py-2.5 bg-brand-500 text-white rounded-xl font-semibold">Buat Akun</button></div>
+ </div></div>
+
+ <!-- CONFIRMATION MODAL -->
+ <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+ <div class="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden">
+ <div class="p-6 text-center">
+ <div class="w-16 h-16 bg-brand-50 text-brand-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-brand-100"><i class="fas fa-question text-3xl"></i></div>
+ <h3 class="text-xl font-bold text-slate-800 mb-2">Simpan Hasil?</h3>
+ <p class="text-slate-600 text-xs font-medium leading-relaxed">Pastikan seluruh jawaban penilaian sudah sesuai.</p>
+ </div>
+ <div class="flex border-t border-slate-100">
+ <button onclick="closeConfirmModal()" class="flex-1 py-3 text-slate-500 font-semibold hover:bg-slate-50">Belum</button>
+ <button onclick="executeSubmitAudit()" class="flex-1 py-3 text-brand-600 font-bold hover:bg-brand-50 border-l border-slate-100">Ya, Simpan</button>
+ </div>
+ </div>
+ </div>
+
+ <!-- TOAST NOTIFICATION -->
+ <div id="toast" class="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl transform translate-y-24 opacity-0 transition-all duration-300 z-50 flex items-center gap-3">
+ <i id="toastIcon" class="fas fa-info-circle text-xl"></i>
+ <span id="toastMsg" class="font-medium text-sm">Pesan Notifikasi</span>
+ </div>
+
+ <script>
+ // CLOUD SYNC (Supabase) - shared data for multi-device use
+ const SUPABASE_URL = 'https://bmtcqpsmcghuavuejdys.supabase.co';
+ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_WTETaMd5Q1Qt6r7pJ59ATw_hB9E6IVe';
+ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+ const CLOUD_KEYS = ['app_locations', 'app_checklists', 'app_users', 'AllAssessments'];
+ let cloudReady = false;
+ let cloudSyncInProgress = false;
+
+ const _nativeStorageSetItem = Storage.prototype.setItem;
+ Storage.prototype.setItem = function(key, value) {
+   _nativeStorageSetItem.call(this, key, value);
+   if (this === window.localStorage && CLOUD_KEYS.includes(key) && cloudReady && !cloudSyncInProgress) {
+     let parsed; try { parsed = JSON.parse(value); } catch { parsed = value; }
+     sb.from('audit5s_state').upsert({ key, value: parsed, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+       .then(({error}) => { if (error) console.error('Cloud sync error:', key, error); });
+   }
+ };
+
+ async function syncFromCloud() {
+   if (cloudSyncInProgress) return;
+   cloudSyncInProgress = true;
+   try {
+     const { data, error } = await sb.from('audit5s_state').select('key,value,updated_at');
+     if (error) throw error;
+     const remote = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+     for (const key of CLOUD_KEYS) {
+       if (Object.prototype.hasOwnProperty.call(remote, key)) {
+         _nativeStorageSetItem.call(localStorage, key, JSON.stringify(remote[key]));
+       } else {
+         const local = localStorage.getItem(key);
+         if (local !== null) {
+           let value; try { value = JSON.parse(local); } catch { value = local; }
+           const { error: seedError } = await sb.from('audit5s_state').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+           if (seedError) throw seedError;
+         }
+       }
+     }
+     locationsConfig = JSON.parse(localStorage.getItem('app_locations')) || [];
+     checklistsData = JSON.parse(localStorage.getItem('app_checklists')) || {};
+     usersData = JSON.parse(localStorage.getItem('app_users')) || [
+       { id: 'usr_1', name: 'Manajer Operasional', role: 'Management', assignedLoc: 'ALL' },
+       { id: 'usr_2', name: 'Auditor Utama 5S', role: 'Auditor', assignedLoc: 'ALL' },
+       { id: 'usr_3', name: 'Auditee Sektor 1', role: 'Auditee', assignedLoc: 'upt_madiun' }
+     ];
+     cloudReady = true;
+     console.info('Audit 5S cloud sync ready');
+   } catch (err) {
+     console.error('Supabase sync unavailable; local cache retained.', err);
+     if (typeof showToast === 'function') showToast('Koneksi database belum tersedia. Data lokal tetap dipakai sementara.', 'error');
+   } finally { cloudSyncInProgress = false; }
+ }
+
+ // DATA INITIALIZATION
+ let locationsConfig = JSON.parse(localStorage.getItem('app_locations')) || [];
+ let checklistsData = JSON.parse(localStorage.getItem('app_checklists')) || {};
+ let usersData = JSON.parse(localStorage.getItem('app_users')) || [
+ { id: 'usr_1', name: 'Manajer Operasional', role: 'Management', assignedLoc: 'ALL' },
+ { id: 'usr_2', name: 'Auditor Utama 5S', role: 'Auditor', assignedLoc: 'ALL' },
+ { id: 'usr_3', name: 'Auditee Sektor 1', role: 'Auditee', assignedLoc: 'upt_madiun' }
+ ];
+
+ function saveConfigToLocal() {
+ localStorage.setItem('app_locations', JSON.stringify(locationsConfig));
+ localStorage.setItem('app_checklists', JSON.stringify(checklistsData));
+ localStorage.setItem('app_users', JSON.stringify(usersData));
+ }
+
+ // STATE VARIABLES
+ let currentUserRole = null;
+ let currentUserName = '';
+ let selectedLocationId = null;
+ let selectedChecklistId = null;
+ let auditData = {}; 
+ let currentFollowUps = {}; 
+ let temuanKhususList = [];
+ let reportMode = 'auditor'; // 'auditor', 'approval', 'auditee', 'management'
+
+ function getCurrentTimeWIB() {
+ return new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute:'2-digit' }) + ' WIB';
+ }
+ function getCurrentDateTimeWIB() {
+ return new Date().toLocaleString('id-ID', { day:'numeric', month:'short', hour: '2-digit', minute:'2-digit' }) + ' WIB';
+ }
+
+ function showToast(msg, type='info') {
+ const t = document.getElementById('toast');
+ document.getElementById('toastMsg').innerText = msg;
+ document.getElementById('toastIcon').className = type==='success' ? 'fas fa-check-circle text-xl text-emerald-400' : (type==='error'?'fas fa-exclamation-triangle text-xl text-rose-400':'fas fa-info-circle text-xl text-brand-400');
+ t.classList.remove('translate-y-24', 'opacity-0');
+ setTimeout(() => t.classList.add('translate-y-24', 'opacity-0'), 3000);
+ }
+
+ let currentZoomScale = 1;
+ function openZoomModal(imgSrc, title="Foto Eviden") {
+ const modal = document.getElementById('zoomModal');
+ const zoomImg = document.getElementById('zoomImage');
+ document.getElementById('zoomModalTitle').innerHTML = `<i class="fas fa-search-plus mr-2 text-brand-400"></i> ${title}`;
+ zoomImg.src = imgSrc;
+ currentZoomScale = 1;
+ zoomImg.style.transform = `scale(${currentZoomScale})`;
+ modal.classList.remove('hidden');
+ }
+ function closeZoomModal() {
+ document.getElementById('zoomModal').classList.add('hidden');
+ }
+ function adjustZoom(delta) {
+ currentZoomScale = Math.max(0.5, Math.min(3, currentZoomScale + delta));
+ document.getElementById('zoomImage').style.transform = `scale(${currentZoomScale})`;
+ }
+ function resetZoom() {
+ currentZoomScale = 1;
+ document.getElementById('zoomImage').style.transform = `scale(${currentZoomScale})`;
+ }
+
+
+ const EVIDENCE_BUCKET = 'audit5s-evidence';
+ const evidenceUrlCache = new Map();
+ function normalizeIndoPhone(raw) {
+   let v = String(raw || '').trim();
+   if (!v) return '';
+   // IMPORTANT: detect email BEFORE stripping phone separators.
+   if (v.includes('@')) return v.toLowerCase();
+   v = v.replace(/[\s().-]/g, '');
+   v = v.replace(/[^\d+]/g, '');
+   if (v.startsWith('00')) v = '+' + v.slice(2);
+   if (v.startsWith('0')) v = '+62' + v.slice(1);
+   else if (v.startsWith('62')) v = '+' + v;
+   else if (v.startsWith('8')) v = '+62' + v;
+   if (!v.startsWith('+')) v = '+' + v;
+   return v;
+ }
+ async function compressEvidenceImage(file, maxSide=1600, quality=0.78) {
+   if (!file || !file.type?.startsWith('image/')) throw new Error('File harus berupa foto.');
+   const bitmap = await createImageBitmap(file);
+   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+   const canvas = document.createElement('canvas');
+   canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+   canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close?.();
+   return await new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error('Gagal memproses foto.')), 'image/jpeg', quality));
+ }
+ async function uploadEvidenceFile(file, kind, itemId) {
+   if (!currentAuthUser) throw new Error('Sesi login tidak ditemukan.');
+   const blob = await compressEvidenceImage(file);
+   const safe = String(itemId || 'item').replace(/[^a-zA-Z0-9_-]/g, '_');
+   const loc = String(selectedLocationId || document.getElementById('reportLocSelect')?.value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+   const chk = String(selectedChecklistId || document.getElementById('reportChecklistSelect')?.value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
+   const path = `${currentAuthUser.id}/${loc}/${chk}/${kind}_${safe}_${Date.now()}.jpg`;
+   const { error } = await sb.storage.from(EVIDENCE_BUCKET).upload(path, blob, { contentType:'image/jpeg', upsert:false });
+   if (error) throw error; return path;
+ }
+ async function getEvidenceUrl(path) {
+   if (!path) return '';
+   const cached = evidenceUrlCache.get(path); if (cached && cached.expires > Date.now()) return cached.url;
+   const { data, error } = await sb.storage.from(EVIDENCE_BUCKET).createSignedUrl(path, 3600); if (error) throw error;
+   evidenceUrlCache.set(path, {url:data.signedUrl, expires:Date.now()+50*60*1000}); return data.signedUrl;
+ }
+ function evidenceThumbHtml(path, title='Foto Eviden') {
+   if (!path) return '';
+   return `<div class="mt-3"><div class="text-[11px] font-bold text-slate-500 mb-1"><i class="fas fa-camera mr-1"></i>${title}</div><img data-evidence-path="${escapeHtml(path)}" data-evidence-title="${escapeHtml(title)}" src="" alt="${escapeHtml(title)}" class="img-zoomable w-28 h-28 object-cover rounded-xl border border-slate-200 bg-slate-100" onclick="if(this.src) openZoomModal(this.src,this.dataset.evidenceTitle)"></div>`;
+ }
+ async function hydrateEvidenceImages(root=document) {
+   const imgs = Array.from(root.querySelectorAll('img[data-evidence-path]'));
+   await Promise.all(imgs.map(async img => { if(img.dataset.loaded==='1')return; try{img.src=await getEvidenceUrl(img.dataset.evidencePath);img.dataset.loaded='1';}catch(e){console.error(e);} }));
+ }
+ async function captureAuditPhoto(itemId,event,special=false){
+   const file=event.target.files?.[0]; if(!file)return; event.target.disabled=true;
+   try{const path=await uploadEvidenceFile(file,'auditor',itemId); if(special){const f=temuanKhususList.find(x=>x.id===itemId);if(f)f.evidencePhoto=path;renderTemuanKhususList();}else{auditData[itemId].evidencePhoto=path;const box=document.getElementById(`audit_photo_preview_${itemId}`);if(box){box.innerHTML=evidenceThumbHtml(path,'Foto Temuan Auditor');await hydrateEvidenceImages(box);}}showToast('Foto temuan berhasil diunggah.','success');}catch(e){showToast(e.message||'Gagal mengunggah foto.','error');}finally{event.target.disabled=false;}
+ }
+ async function captureFollowupPhoto(itemId,event){
+   const file=event.target.files?.[0]; if(!file)return; event.target.disabled=true;
+   try{const path=await uploadEvidenceFile(file,'auditee',itemId);if(!currentFollowUps[itemId])currentFollowUps[itemId]={text:'',photo:''};currentFollowUps[itemId].photo=path;const box=document.getElementById(`followup_photo_preview_${itemId}`);if(box){box.innerHTML=evidenceThumbHtml(path,'Foto Tindak Lanjut Auditee');await hydrateEvidenceImages(box);}showToast('Foto tindak lanjut berhasil diunggah.','success');}catch(e){showToast(e.message||'Gagal mengunggah foto tindak lanjut.','error');}finally{event.target.disabled=false;}
+ }
+
+ function loginQuick(role) {
+ currentUserRole = role;
+ currentUserName = role + ' User';
+ 
+ document.getElementById('loginSection').classList.add('hidden');
+ document.getElementById('userInfo').classList.remove('hidden');
+ document.getElementById('userRoleDisplay').innerText = role;
+ document.getElementById('userNameDisplay').innerText = currentUserName;
+
+ if (role === 'Management') {
+ document.getElementById('managementDashboard').classList.remove('hidden');
+ renderManagementDashboard();
+ } else if (role === 'Auditor') {
+ document.getElementById('auditorDashboard').classList.remove('hidden');
+ updateLocFilterDropdown();
+ updateAuditorStats();
+ updatePendingBadgeCount();
+ } else if (role === 'Auditee') {
+ document.getElementById('reportSection').classList.remove('hidden');
+ initReportFilters('auditee');
+ }
+ }
+
+ function logout() {
+ currentUserRole = null; 
+ selectedLocationId = null; 
+ selectedChecklistId = null; 
+ 
+ document.getElementById('userInfo').classList.add('hidden');
+ document.getElementById('managementDashboard').classList.add('hidden');
+ document.getElementById('auditorDashboard').classList.add('hidden');
+ document.getElementById('selectionSection').classList.add('hidden');
+ document.getElementById('auditorSection').classList.add('hidden');
+ document.getElementById('reportSection').classList.add('hidden');
+ document.getElementById('adminDashboard').classList.add('hidden');
+ document.getElementById('loginSection').classList.remove('hidden');
+ }
+
+ function showAdminLogin() { document.getElementById('adminLoginModal').classList.remove('hidden'); }
+ function closeAdminLogin() { document.getElementById('adminLoginModal').classList.add('hidden'); }
+ function doAdminLogin() {
+ const u = document.getElementById('adminUsername').value;
+ const p = document.getElementById('adminPassword').value;
+ if(u === 'admin' && p === 'admin123') {
+ closeAdminLogin(); 
+ loginQuick('Admin');
+ document.getElementById('auditorDashboard').classList.add('hidden');
+ document.getElementById('adminDashboard').classList.remove('hidden');
+ switchAdminTab('loc');
+ } else { 
+ showToast('Username atau Password Admin salah!', 'error'); 
+ }
+ }
+
+ function switchAdminTab(tab) {
+ document.getElementById('tabAdminLoc').className = tab==='loc' ? 'px-5 py-2.5 bg-slate-800 text-white rounded-xl font-semibold shadow-sm text-sm' : 'px-5 py-2.5 bg-white text-slate-600 border rounded-xl font-semibold text-sm';
+ document.getElementById('tabAdminForm').className = tab==='form' ? 'px-5 py-2.5 bg-slate-800 text-white rounded-xl font-semibold shadow-sm text-sm' : 'px-5 py-2.5 bg-white text-slate-600 border rounded-xl font-semibold text-sm';
+ document.getElementById('tabAdminUser').className = tab==='user' ? 'px-5 py-2.5 bg-slate-800 text-white rounded-xl font-semibold shadow-sm text-sm' : 'px-5 py-2.5 bg-white text-slate-600 border rounded-xl font-semibold text-sm';
+ 
+ document.getElementById('panelAdminLoc').classList.toggle('hidden', tab!=='loc');
+ document.getElementById('panelAdminForm').classList.toggle('hidden', tab!=='form');
+ document.getElementById('panelAdminUser').classList.toggle('hidden', tab!=='user');
+ 
+ if(tab==='loc') renderAdminLocTable();
+ if(tab==='form') renderAdminForms();
+ if(tab==='user') renderAdminUserTable();
+ }
+
+ function renderAdminLocTable() {
+ const tbody = document.getElementById('adminLocTableBody');
+ tbody.innerHTML = '';
+ if(locationsConfig.length === 0) {
+ tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-400 italic">Belum ada lokasi target. Tambahkan lokasi baru.</td></tr>`;
+ return;
+ }
+ locationsConfig.forEach(loc => {
+ tbody.innerHTML += `
+ <tr class="hover:bg-slate-50 transition-colors">
+ <td class="p-3.5 font-bold text-slate-700">${loc.id}</td>
+ <td class="p-3.5 font-medium text-slate-800">${loc.name}</td>
+ <td class="p-3.5 text-xs text-brand-600 font-semibold">${loc.allowedChecklists.join(', ')}</td>
+ <td class="p-3.5 text-center">
+ <button onclick="openAdminLocModal('${loc.id}')" class="text-blue-500 hover:text-blue-700 p-1.5"><i class="fas fa-edit"></i></button>
+ </td>
+ </tr>`;
+ });
+ }
+
+ let editingLocId = null;
+ function openAdminLocModal(id = null) {
+ editingLocId = id; 
+ const loc = id ? locationsConfig.find(l => l.id === id) : null;
+ document.getElementById('adminLocModalTitle').innerText = id ? 'Edit Lokasi' : 'Tambah Lokasi';
+ document.getElementById('adminLocId').value = loc ? loc.id : '';
+ document.getElementById('adminLocId').disabled = !!id;
+ document.getElementById('adminLocName').value = loc ? loc.name : '';
+ 
+ const formsContainer = document.getElementById('adminLocFormsContainer');
+ formsContainer.innerHTML = '';
+ for (const formId in checklistsData) {
+ const formTitle = checklistsData[formId].title;
+ const isChecked = loc ? loc.allowedChecklists.includes(formId) : false;
+ formsContainer.innerHTML += `
+ <label class="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer border border-transparent hover:border-slate-200">
+ <input type="checkbox" value="${formId}" class="form-checkbox-loc w-4 h-4 text-brand-500 rounded focus:ring-brand-500" ${isChecked?'checked':''}>
+ <span class="text-sm font-medium text-slate-700">${formTitle}</span>
+ </label>`;
+ }
+ document.getElementById('adminLocModal').classList.remove('hidden');
+ }
+
+ function closeAdminLocModal() { document.getElementById('adminLocModal').classList.add('hidden'); }
+ 
+ function saveAdminLoc() {
+ const id = document.getElementById('adminLocId').value.trim();
+ const name = document.getElementById('adminLocName').value.trim();
+ const checkedBoxes = document.querySelectorAll('.form-checkbox-loc:checked');
+ const allowedChecklists = Array.from(checkedBoxes).map(cb => cb.value);
+ 
+ if (!id || !name || allowedChecklists.length === 0) { 
+ showToast('Isi ID, Nama, & pilih minimal 1 Form!', 'error'); 
+ return; 
+ }
+ if (editingLocId) {
+ const idx = locationsConfig.findIndex(l => l.id === editingLocId);
+ if (idx > -1) { 
+ locationsConfig[idx].name = name; 
+ locationsConfig[idx].allowedChecklists = allowedChecklists; 
+ }
+ } else {
+ if (locationsConfig.find(l => l.id === id)) { 
+ showToast('ID Lokasi sudah ada!', 'error'); 
+ return; 
+ }
+ locationsConfig.push({ id, name, allowedChecklists });
+ }
+ saveConfigToLocal(); 
+ closeAdminLocModal(); 
+ renderAdminLocTable(); 
+ showToast('Lokasi berhasil disimpan', 'success');
+ }
+
+ let parsedLocationsFromPdf = [];
+
+ function openAdminLocPdfModal() {
+ document.getElementById('adminLocPdfInput').value = '';
+ document.getElementById('pdfLocPreviewContainer').classList.add('hidden');
+ document.getElementById('pdfLocLoading').classList.add('hidden');
+ document.getElementById('btnImportLocs').disabled = true;
+ parsedLocationsFromPdf = [];
+ document.getElementById('adminLocPdfModal').classList.remove('hidden');
+ }
+
+ function closeAdminLocPdfModal() {
+ document.getElementById('adminLocPdfModal').classList.add('hidden');
+ }
+
+ async function handleAdminLocPdfSelect(e) {
+ const file = e.target.files[0];
+ if (!file) return;
+ 
+ if (file.type !== 'application/pdf') {
+ showToast('File harus berformat PDF!', 'error');
+ return;
+ }
+
+ document.getElementById('pdfLocLoading').classList.remove('hidden');
+ document.getElementById('pdfLocPreviewContainer').classList.add('hidden');
+ 
+ try {
+ const arrayBuffer = await file.arrayBuffer();
+ const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+ let fullTextLines = [];
+
+ for (let i = 1; i <= pdf.numPages; i++) {
+ const page = await pdf.getPage(i);
+ const textContent = await page.getTextContent();
+ let lastY = null;
+ let currentLine = "";
+ 
+ textContent.items.forEach(item => {
+ if (lastY === null || Math.abs(item.transform[5] - lastY) < 5) {
+ currentLine += (currentLine ? " " : "") + item.str;
+ } else {
+ if (currentLine.trim()) fullTextLines.push(currentLine.trim());
+ currentLine = item.str;
+ }
+ lastY = item.transform[5];
+ });
+ if (currentLine.trim()) fullTextLines.push(currentLine.trim());
+ }
+
+ parsedLocationsFromPdf = parseLocLinesToObjects(fullTextLines);
+ renderLocPdfPreviewTable();
+
+ } catch (err) {
+ console.error("Gagal membaca PDF:", err);
+ showToast('Gagal mengekstrak file PDF lokasi!', 'error');
+ } finally {
+ document.getElementById('pdfLocLoading').classList.add('hidden');
+ }
+ }
+
+ function parseLocLinesToObjects(lines) {
+ const results = [];
+ const availableFormIds = Object.keys(checklistsData);
+
+ lines.forEach(line => {
+ const lower = line.toLowerCase();
+ if (lower.includes('id lokasi') || lower.includes('nama lokasi') || line.trim().length < 3) return;
+
+ let parts = [];
+ if (line.includes('|')) parts = line.split('|');
+ else if (line.includes(';')) parts = line.split(';');
+ else if (line.includes(',')) parts = line.split(',');
+ else if (line.includes('\t')) parts = line.split('\t');
+ else {
+ const tokens = line.split(/\s+/);
+ if (tokens.length >= 2) parts = [tokens[0], tokens.slice(1).join(' ')];
+ }
+
+ if (parts.length >= 2) {
+ const locId = parts[0].trim().replace(/\s+/g, '_').toLowerCase();
+ const locName = parts[1].trim();
+ let formsStr = parts[2] ? parts[2].trim() : '';
+ 
+ let allowedForms = [];
+ if (formsStr) {
+ allowedForms = formsStr.split(/[,\s]+/).map(f => f.trim()).filter(f => f);
+ }
+ 
+ if (allowedForms.length === 0) {
+ allowedForms = availableFormIds.length > 0 ? [availableFormIds[0]] : ['5s'];
+ }
+
+ if (locId && locName) {
+ results.push({
+ id: locId,
+ name: locName,
+ allowedChecklists: allowedForms
+ });
+ }
+ }
+ });
+
+ return results;
+ }
+
+ function renderLocPdfPreviewTable() {
+ const tableBody = document.getElementById('pdfLocPreviewTable');
+ tableBody.innerHTML = '';
+ 
+ if (parsedLocationsFromPdf.length === 0) {
+ tableBody.innerHTML = `<tr><td colspan="3" class="p-4 text-center text-slate-400 italic">Tidak ada lokasi terdeteksi dari PDF. Pastikan file PDF memuat ID Lokasi dan Nama Lokasi.</td></tr>`;
+ document.getElementById('btnImportLocs').disabled = true;
+ } else {
+ parsedLocationsFromPdf.forEach((loc, idx) => {
+ tableBody.innerHTML += `
+ <tr class="hover:bg-slate-50">
+ <td class="p-2"><input type="text" value="${loc.id}" onchange="parsedLocationsFromPdf[${idx}].id=this.value.trim()" class="w-full p-1.5 border border-slate-300 rounded-lg bg-slate-50 font-bold text-xs"></td>
+ <td class="p-2"><input type="text" value="${loc.name}" onchange="parsedLocationsFromPdf[${idx}].name=this.value.trim()" class="w-full p-1.5 border border-slate-300 rounded-lg text-xs font-medium"></td>
+ <td class="p-2"><input type="text" value="${loc.allowedChecklists.join(', ')}" onchange="parsedLocationsFromPdf[${idx}].allowedChecklists=this.value.split(',').map(s=>s.trim()).filter(s=>s)" class="w-full p-1.5 border border-slate-300 rounded-lg text-xs text-brand-600 font-semibold"></td>
+ </tr>
+ `;
+ });
+ document.getElementById('btnImportLocs').disabled = false;
+ }
+
+ document.getElementById('parsedLocCount').innerText = parsedLocationsFromPdf.length;
+ document.getElementById('pdfLocPreviewContainer').classList.remove('hidden');
+ }
+
+ function importParsedLocs() {
+ if (parsedLocationsFromPdf.length === 0) return;
+
+ let addedCount = 0;
+ parsedLocationsFromPdf.forEach(item => {
+ if (!item.id || !item.name) return;
+ const existingIdx = locationsConfig.findIndex(l => l.id === item.id);
+ if (existingIdx > -1) {
+ locationsConfig[existingIdx].name = item.name;
+ locationsConfig[existingIdx].allowedChecklists = item.allowedChecklists;
+ } else {
+ locationsConfig.push(item);
+ }
+ addedCount++;
+ });
+
+ saveConfigToLocal();
+ closeAdminLocPdfModal();
+ renderAdminLocTable();
+ showToast(`Berhasil mengimpor ${addedCount} lokasi!`, 'success');
+ }
+
+
+ let editingFormId = null;
+ let parsedFormItemsFromPdf = [];
+
+ function escapeHtml(v='') { return String(v).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+ function slugifyFormId(v='') { return v.toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,60); }
+
+ function renderAdminForms() {
+   const c = document.getElementById('adminFormsContainer'); if (!c) return;
+   const entries = Object.entries(checklistsData || {});
+   if (!entries.length) { c.innerHTML = '<div class="md:col-span-2 p-8 text-center text-slate-400 italic bg-slate-50 rounded-2xl border border-dashed">Belum ada form checklist. Tambahkan manual atau import dari PDF.</div>'; return; }
+   c.innerHTML = entries.map(([id,f]) => {
+     const catCount=(f.categories||[]).length, itemCount=(f.categories||[]).reduce((n,x)=>n+(x.items||[]).length,0);
+     return `<div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"><div class="flex justify-between gap-3"><div><span class="text-[10px] font-bold text-brand-600 uppercase">${escapeHtml(id)}</span><h3 class="font-bold text-slate-800 mt-1">${escapeHtml(f.title||id)}</h3><p class="text-xs text-slate-500 mt-2">${catCount} kategori · ${itemCount} butir checklist</p></div><div class="flex gap-1 self-start"><button onclick="openAdminFormModal('${escapeHtml(id)}')" class="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Edit"><i class="fas fa-edit"></i></button><button onclick="deleteAdminForm('${escapeHtml(id)}')" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg" title="Hapus"><i class="fas fa-trash"></i></button></div></div></div>`;
+   }).join('');
+ }
+
+ function formToText(form) {
+   return (form?.categories||[]).flatMap(cat => (cat.items||[]).map(i => `${cat.title || 'Umum'} | ${i.text || ''}`)).join('\n');
+ }
+ function parseManualChecklistText(text, formId) {
+   const rows=[]; let n=1;
+   String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).forEach(line => {
+     let category='Umum', question=line;
+     if (line.includes('|')) { const p=line.split('|'); category=p.shift().trim()||'Umum'; question=p.join('|').trim(); }
+     else if (line.includes(';')) { const p=line.split(';'); if(p.length>1){category=p.shift().trim()||'Umum'; question=p.join(';').trim();} }
+     question=question.replace(/^\s*(?:\d+(?:[.)]|\s)|[-•▪◦])\s*/, '').trim();
+     if(question) rows.push({category, text:question, id:`${formId}_${String(n++).padStart(3,'0')}`});
+   });
+   return rows;
+ }
+ function rowsToChecklist(title, rows) {
+   const groups=new Map();
+   rows.forEach(r=>{ const cat=(r.category||'Umum').trim()||'Umum'; if(!groups.has(cat)) groups.set(cat,[]); groups.get(cat).push({id:r.id,text:r.text}); });
+   return { title, categories:[...groups].map(([title,items])=>({title,items})) };
+ }
+ function openAdminFormModal(id=null) {
+   editingFormId=id; const f=id?checklistsData[id]:null;
+   document.getElementById('adminFormModalTitle').innerText=id?'Edit Form Checklist':'Form Checklist Baru';
+   document.getElementById('adminFormId').value=id||''; document.getElementById('adminFormId').disabled=!!id;
+   document.getElementById('adminFormTitleInput').value=f?.title||''; document.getElementById('adminFormItemsText').value=formToText(f);
+   document.getElementById('adminFormModal').classList.remove('hidden');
+ }
+ function closeAdminFormModal(){ document.getElementById('adminFormModal').classList.add('hidden'); editingFormId=null; }
+ function saveAdminForm(){
+   const rawId=document.getElementById('adminFormId').value, id=editingFormId||slugifyFormId(rawId), title=document.getElementById('adminFormTitleInput').value.trim();
+   if(!id||!title){showToast('ID Form dan Judul Form wajib diisi.','error');return;}
+   if(!editingFormId && checklistsData[id]){showToast('ID Form sudah digunakan.','error');return;}
+   const rows=parseManualChecklistText(document.getElementById('adminFormItemsText').value,id);
+   if(!rows.length){showToast('Tambahkan minimal 1 butir checklist.','error');return;}
+   checklistsData[id]=rowsToChecklist(title,rows); saveConfigToLocal(); closeAdminFormModal(); renderAdminForms(); showToast('Form checklist berhasil disimpan.','success');
+ }
+ function deleteAdminForm(id){
+   if(!confirm(`Hapus form "${checklistsData[id]?.title||id}"?`)) return;
+   delete checklistsData[id]; locationsConfig.forEach(l=>{l.allowedChecklists=(l.allowedChecklists||[]).filter(x=>x!==id)}); saveConfigToLocal(); renderAdminForms(); showToast('Form checklist dihapus.','info');
+ }
+
+ function openAdminFormPdfModal(){ parsedFormItemsFromPdf=[]; document.getElementById('adminFormPdfInput').value=''; document.getElementById('pdfFormPreviewContainer').classList.add('hidden'); document.getElementById('btnImportFormPdf').disabled=true; document.getElementById('adminFormPdfModal').classList.remove('hidden'); }
+ function closeAdminFormPdfModal(){ document.getElementById('adminFormPdfModal').classList.add('hidden'); }
+ async function handleAdminFormPdfSelect(e){
+   const file=e.target.files?.[0]; if(!file)return; if(file.type!=='application/pdf'){showToast('File harus PDF.','error');return;}
+   const idInput=document.getElementById('pdfFormId'),titleInput=document.getElementById('pdfFormTitle');
+   if(!idInput.value)idInput.value=slugifyFormId(file.name.replace(/\.pdf$/i,'')); if(!titleInput.value)titleInput.value=file.name.replace(/\.pdf$/i,'').replace(/[_-]+/g,' ');
+   document.getElementById('pdfFormLoading').classList.remove('hidden');
+   try{const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise,rows=[],fallbackLines=[];
+     for(let p=1;p<=pdf.numPages;p++){const page=await pdf.getPage(p),tc=await page.getTextContent(),vp=page.getViewport({scale:1});const items=tc.items.map(x=>({text:String(x.str||'').trim(),y:x.transform[5],x:x.transform[4]})).filter(x=>x.text);items.sort((a,b)=>Math.abs(b.y-a.y)>4?b.y-a.y:a.x-b.x);let groups=[],row=[],lastY=null;for(const it of items){if(lastY===null||Math.abs(it.y-lastY)<4)row.push(it);else{groups.push(row);row=[it]}lastY=it.y;}if(row.length)groups.push(row);
+       for(const g0 of groups){const g=g0.sort((a,b)=>a.x-b.x);fallbackLines.push(g.map(x=>x.text).join('   ').trim());const cols=['','',''];for(const it of g){const ratio=it.x/Math.max(vp.width,1),ci=ratio<0.18?0:(ratio<0.48?1:2);cols[ci]=(cols[ci]+' '+it.text).trim();}const c0=cols[0].trim(),c1=cols[1].trim(),c2=cols[2].trim(),joined=(c0+' '+c1+' '+c2).toLowerCase();if(/\b(no|nomor)\b/.test(c0.toLowerCase())&&/(kategori|kelompok)/.test(joined)&&/(pertanyaan|kriteria|checklist|uraian|item)/.test(joined))continue;if(c2.length>=5)rows.push({category:c1||'Umum',text:c2.replace(/^[-•▪◦]\s*/,'').trim()});else if(c1.length>=8&&!/^\d+[.)]?$/.test(c1))rows.push({category:'Umum',text:c1});}
+     }
+     parsedFormItemsFromPdf=rows.length?dedupePdfRows(rows):parsePdfChecklistLines(fallbackLines);renderFormPdfPreview();if(!parsedFormItemsFromPdf.length)showToast('Tidak ada butir terdeteksi. Pastikan PDF memiliki text layer dan tabel 3 kolom No | Kategori | Pertanyaan.','error');
+   }catch(err){console.error(err);showToast('PDF gagal dibaca: '+(err.message||err),'error');}finally{document.getElementById('pdfFormLoading').classList.add('hidden');}
+ }
+ function dedupePdfRows(rows){const seen=new Set();return rows.map(r=>({category:String(r.category||'Umum').replace(/\s+/g,' ').trim(),text:String(r.text||'').replace(/\s+/g,' ').trim()})).filter(r=>{if(r.text.length<5)return false;const k=(r.category+'|'+r.text).toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});}
+ function parsePdfChecklistLines(lines){const out=[];for(let raw of lines){let line=String(raw||'').replace(/\s+/g,' ').trim();if(line.length<5)continue;const m=line.match(/^\s*(?:\d+[.)]?\s*)?([^|;]{2,50})[|;]\s*(.{5,})$/);if(m){out.push({category:m[1].trim(),text:m[2].trim()});continue;}const q=line.replace(/^\s*(?:\d+(?:\.\d+)*(?:[.)]|\s)|[-•▪◦])\s*/,'').trim();if(q.length>=8)out.push({category:'Umum',text:q});}return dedupePdfRows(out);}
+ function renderFormPdfPreview(){
+   const tb=document.getElementById('pdfFormPreviewTable'); tb.innerHTML=parsedFormItemsFromPdf.map((r,i)=>`<tr><td class="p-2"><input value="${escapeHtml(r.category)}" onchange="parsedFormItemsFromPdf[${i}].category=this.value" class="w-full p-1.5 border rounded-lg"></td><td class="p-2"><textarea rows="2" onchange="parsedFormItemsFromPdf[${i}].text=this.value" class="w-full p-1.5 border rounded-lg">${escapeHtml(r.text)}</textarea></td><td class="p-2 text-center"><button onclick="parsedFormItemsFromPdf.splice(${i},1);renderFormPdfPreview()" class="text-rose-500"><i class="fas fa-trash"></i></button></td></tr>`).join(''); document.getElementById('parsedFormCount').innerText=parsedFormItemsFromPdf.length; document.getElementById('pdfFormPreviewContainer').classList.remove('hidden'); document.getElementById('btnImportFormPdf').disabled=!parsedFormItemsFromPdf.length;
+ }
+ function importParsedFormPdf(){
+   const id=slugifyFormId(document.getElementById('pdfFormId').value), title=document.getElementById('pdfFormTitle').value.trim(); if(!id||!title){showToast('ID Form dan Judul Form wajib diisi.','error');return;} if(checklistsData[id]&&!confirm('ID Form sudah ada. Timpa form tersebut?'))return;
+   const rows=parsedFormItemsFromPdf.filter(r=>r.text.trim()).map((r,i)=>({category:r.category||'Umum',text:r.text.trim(),id:`${id}_${String(i+1).padStart(3,'0')}`})); if(!rows.length)return; checklistsData[id]=rowsToChecklist(title,rows); saveConfigToLocal(); closeAdminFormPdfModal(); renderAdminForms(); showToast(`Berhasil mengimpor ${rows.length} butir checklist dari PDF.`,'success');
+ }
+
+ function renderManagementDashboard() {
+ const allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ 
+ let totalLocations = locationsConfig.length;
+ let auditedCount = 0;
+ let totalProgressSum = 0;
+
+ const listContainer = document.getElementById('mgmtBarChartList');
+ listContainer.innerHTML = '';
+
+ if (totalLocations === 0) {
+ listContainer.innerHTML = `<div class="p-8 text-center text-slate-400 italic bg-slate-50 rounded-2xl">Belum ada lokasi target yang diinput oleh Admin.</div>`;
+ document.getElementById('mgmtTotalLoc').innerText = 0;
+ document.getElementById('mgmtAuditedLoc').innerText = 0;
+ document.getElementById('mgmtUnauditedLoc').innerText = 0;
+ document.getElementById('mgmtAvgProgress').innerText = '0%';
+ return;
+ }
+
+ locationsConfig.forEach(loc => {
+ let locHasAudit = false;
+ let locApproved = 0;
+ let locTotalIssues = 0;
+
+ for (let key in allAudits) {
+ const assessment = allAudits[key];
+ if (assessment.locationId === loc.id) {
+ locHasAudit = true;
+ if (assessment.checklistId === 'temuan_khusus' && assessment.additionalFindings) {
+ assessment.additionalFindings.forEach(f => {
+ locTotalIssues++;
+ if (f.approved === true) locApproved++;
+ });
+ } else if (assessment.data) {
+ for (let itemId in assessment.data) {
+ const item = assessment.data[itemId];
+ if (item.score === 0) {
+ locTotalIssues++;
+ if (item.approved === true) locApproved++;
+ }
+ }
+ }
+ }
+ }
+
+ if (locHasAudit) auditedCount++;
+
+ let percentage = locTotalIssues === 0 ? (locHasAudit ? 100 : 0) : Math.round((locApproved / locTotalIssues) * 100);
+ totalProgressSum += percentage;
+
+ let statusBadge = locHasAudit ? 
+ `<span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full"><i class="fas fa-check mr-1"></i> Sudah Diaudit</span>` : 
+ `<span class="px-2.5 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full"><i class="fas fa-clock mr-1"></i> Belum Diaudit</span>`;
+
+ listContainer.innerHTML += `
+ <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col gap-2">
+ <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+ <div class="flex items-center gap-3">
+ <span class="font-bold text-slate-800 text-base">${loc.name}</span>
+ ${statusBadge}
+ </div>
+ <div class="text-right">
+ <span class="text-sm font-extrabold text-indigo-600">${percentage}% Selesai</span>
+ <span class="text-xs text-slate-400 ml-1">(${locApproved}/${locTotalIssues} Approved)</span>
+ </div>
+ </div>
+ <div class="w-full bg-slate-200 h-3.5 rounded-full overflow-hidden">
+ <div class="bg-indigo-600 h-full rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+ </div>
+ </div>`;
+ });
+
+ document.getElementById('mgmtTotalLoc').innerText = totalLocations;
+ document.getElementById('mgmtAuditedLoc').innerText = auditedCount;
+ document.getElementById('mgmtUnauditedLoc').innerText = totalLocations - auditedCount;
+ document.getElementById('mgmtAvgProgress').innerText = Math.round(totalProgressSum / totalLocations) + '%';
+ }
+
+ function openNewAudit() {
+ document.getElementById('auditorDashboard').classList.add('hidden');
+ document.getElementById('selectionSection').classList.remove('hidden');
+ renderLocationSelection();
+ }
+
+ function backToDashboard() {
+ document.getElementById('selectionSection').classList.add('hidden');
+ document.getElementById('reportSection').classList.add('hidden');
+ 
+ if (currentUserRole === 'Management') {
+ document.getElementById('managementDashboard').classList.remove('hidden');
+ renderManagementDashboard();
+ } else if (currentUserRole === 'Auditor') {
+ document.getElementById('auditorDashboard').classList.remove('hidden');
+ updateAuditorStats();
+ updatePendingBadgeCount();
+ }
+ }
+
+ function updateLocFilterDropdown() {
+ const filter = document.getElementById('statsLocFilter');
+ filter.innerHTML = '<option value="ALL">Semua Lokasi</option>';
+ locationsConfig.forEach(loc => filter.innerHTML += `<option value="${loc.id}">${loc.name}</option>`);
+ }
+
+ function updateAuditorStats() {
+ const selectedLoc = document.getElementById('statsLocFilter').value;
+ let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ 
+ let stats = {};
+ for (let chkKey in checklistsData) {
+ stats[chkKey] = { title: checklistsData[chkKey].title, total: 0, resolved: 0, color: '#0ea5e9' };
+ }
+ stats['temuan_khusus'] = { title: 'Temuan Khusus', total: 0, resolved: 0, color: '#a855f7' };
+
+ for (let key in allAudits) {
+ const assessment = allAudits[key];
+ if (selectedLoc !== 'ALL' && assessment.locationId !== selectedLoc) continue;
+ 
+ const chkId = assessment.checklistId;
+ if (!stats[chkId]) stats[chkId] = { title: chkId, total: 0, resolved: 0, color: '#94a3b8' };
+
+ if (chkId === 'temuan_khusus' && assessment.additionalFindings) {
+ assessment.additionalFindings.forEach(finding => {
+ stats[chkId].total++;
+ if (finding.approved === true) stats[chkId].resolved++;
+ });
+ } else if (assessment.data) {
+ for (let itemId in assessment.data) {
+ const item = assessment.data[itemId];
+ if (item.score === 0) {
+ stats[chkId].total++;
+ if (item.approved === true) stats[chkId].resolved++;
+ }
+ }
+ }
+ }
+
+ const container = document.getElementById('statsContainer'); 
+ container.innerHTML = '';
+ 
+ for (let chkId in stats) {
+ const stat = stats[chkId];
+ let percentage = stat.total === 0 ? 0 : Math.round((stat.resolved / stat.total) * 100);
+ container.innerHTML += `
+ <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center">
+ <div class="radial-progress mb-3" style="--progress: ${percentage}%; color: ${stat.color};"><span>${percentage}%</span></div>
+ <h4 class="text-xs font-bold text-slate-700 line-clamp-1">${stat.title}</h4>
+ <p class="text-[10px] text-slate-500 mt-1">${stat.resolved} dari ${stat.total} Approved</p>
+ </div>`;
+ }
+ }
+
+ function updatePendingBadgeCount() {
+ const allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ let pendingCount = 0;
+
+ for (let key in allAudits) {
+ const assessment = allAudits[key];
+ if (assessment.checklistId === 'temuan_khusus' && assessment.additionalFindings) {
+ assessment.additionalFindings.forEach(f => {
+ if ((f.followup || f.followupPhoto) && f.approved === undefined) pendingCount++;
+ });
+ } else if (assessment.data) {
+ for (let id in assessment.data) {
+ const item = assessment.data[id];
+ if (item.score === 0 && (item.followup || item.followupPhoto) && item.approved === undefined) pendingCount++;
+ }
+ }
+ }
+
+ const badge = document.getElementById('pendingBadgeCard');
+ if (badge) {
+ if (pendingCount > 0) {
+ badge.innerText = `${pendingCount} Pending`;
+ badge.classList.remove('hidden');
+ } else {
+ badge.classList.add('hidden');
+ }
+ }
+ }
+
+ function renderLocationSelection() {
+ const container = document.getElementById('locationList'); 
+ container.innerHTML = '';
+ 
+ if(locationsConfig.length === 0) {
+ container.innerHTML = `<div class="p-4 text-center text-slate-400 text-sm bg-slate-50 rounded-xl">Belum ada lokasi. Tambahkan lewat Admin.</div>`;
+ return;
+ }
+
+ locationsConfig.forEach(loc => {
+ const isSelected = selectedLocationId === loc.id;
+ container.innerHTML += `
+ <button onclick="selectLocation('${loc.id}')" class="w-full text-left p-4 rounded-xl border-2 transition-all ${isSelected ? 'border-brand-500 bg-brand-50 shadow-sm' : 'border-slate-100 bg-white hover:border-brand-200'} flex justify-between items-center group">
+ <span class="font-bold ${isSelected ? 'text-brand-700' : 'text-slate-700'}">${loc.name}</span>
+ <i class="fas ${isSelected ? 'fa-check-circle text-brand-500' : 'fa-chevron-right text-slate-300'}"></i>
+ </button>`;
+ });
+ if (!selectedLocationId) { 
+ document.getElementById('checklistList').innerHTML = `<div class="text-slate-400 text-sm italic p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">Silakan pilih lokasi terlebih dahulu</div>`; 
+ }
+ }
+
+ function selectLocation(locId) { 
+ selectedLocationId = locId; 
+ renderLocationSelection(); 
+ renderChecklistSelection(); 
+ }
+
+ function renderChecklistSelection() {
+ const container = document.getElementById('checklistList'); 
+ container.innerHTML = '';
+ const location = locationsConfig.find(l => l.id === selectedLocationId);
+ if (!location) return;
+ 
+ location.allowedChecklists.forEach(chkId => {
+ const chk = checklistsData[chkId]; 
+ if(!chk) return;
+ container.innerHTML += `
+ <button onclick="startAudit('${chkId}')" class="w-full text-left p-4 rounded-xl border-2 border-slate-100 bg-white hover:border-brand-500 transition-all flex items-start gap-3">
+ <div class="bg-brand-50 w-10 h-10 rounded-lg flex items-center justify-center text-brand-500"><i class="fas fa-file-signature"></i></div>
+ <div>
+ <span class="font-bold text-slate-700">${chk.title}</span>
+ <span class="text-xs text-slate-500 block">Mulai isi form</span>
+ </div>
+ </button>`;
+ });
+
+ container.innerHTML += `
+ <button onclick="startAudit('temuan_khusus')" class="w-full text-left p-4 mt-4 rounded-xl border-2 border-purple-500 bg-purple-50 hover:bg-purple-100 transition-all flex items-start gap-3 group shadow-sm">
+ <div class="bg-white w-10 h-10 rounded-lg flex items-center justify-center text-purple-600 shadow-sm"><i class="fas fa-plus-circle text-lg"></i></div>
+ <div>
+ <span class="font-bold text-purple-800">Entry Tambahan Temuan</span>
+ <span class="text-xs text-purple-600 block mt-0.5">Catat temuan spesifik di luar checklist</span>
+ </div>
+ </button>`;
+ }
+
+ function startAudit(chkId) {
+ selectedChecklistId = chkId;
+ document.getElementById('selectionSection').classList.add('hidden');
+ document.getElementById('auditorSection').classList.remove('hidden');
+ 
+ const locName = locationsConfig.find(l => l.id === selectedLocationId).name;
+ const chkName = chkId === 'temuan_khusus' ? 'Temuan Tambahan Khusus' : checklistsData[chkId].title;
+ document.getElementById('auditorLocBadge').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${locName}`;
+ document.getElementById('auditorChecklistBadge').innerHTML = `<i class="fas fa-file-alt"></i> ${chkName}`;
+ 
+ auditData = {}; 
+ temuanKhususList = [];
+ document.getElementById('totalIssuesCounter').innerText = '0';
+ 
+ if (chkId === 'temuan_khusus') {
+ document.getElementById('checklistContainer').innerHTML = '';
+ document.getElementById('temuanKhususContainer').classList.remove('hidden');
+ renderTemuanKhususList();
+ } else {
+ document.getElementById('temuanKhususContainer').classList.add('hidden');
+ checklistsData[chkId].categories.forEach(cat => cat.items.forEach(i => auditData[i.id] = {score:null, note:'', timestamp:'', evidencePhoto:''}));
+ renderAuditorChecklist();
+ }
+ }
+
+ function backToSelection() {
+ document.getElementById('auditorSection').classList.add('hidden');
+ document.getElementById('selectionSection').classList.remove('hidden');
+ }
+
+ function renderAuditorChecklist() {
+ const container = document.getElementById('checklistContainer'); 
+ container.innerHTML = '';
+ checklistsData[selectedChecklistId].categories.forEach((cat, idx) => {
+ let html = `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-0 mb-6 overflow-hidden"><div class="bg-slate-50 p-4 border-b border-slate-200 flex items-center gap-3"><span class="px-3 py-1 bg-slate-200 rounded-lg text-xs font-bold text-slate-700">${idx+1}</span><h3 class="font-bold text-slate-800">${cat.title}</h3></div>`;
+ cat.items.forEach(item => {
+ html += `
+ <div class="p-5 border-b border-slate-100 flex flex-col md:flex-row gap-4 hover:bg-slate-50/50 transition-colors">
+ <div class="flex-1">
+ <p class="text-sm font-semibold mb-3 text-slate-800">${item.text}</p>
+ <textarea onchange="updateNote('${item.id}', this.value)" class="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Catatan temuan auditor..." rows="2"></textarea>
+ <div id="audit_photo_wrap_${item.id}" class="hidden mt-3 p-3 bg-rose-50 border border-rose-100 rounded-xl"><label class="inline-flex items-center gap-2 px-3 py-2 bg-white border border-rose-200 text-rose-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Ambil / Upload Foto Temuan<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureAuditPhoto('${item.id}',event,false)"></label><div id="audit_photo_preview_${item.id}"></div></div>
+ </div>
+ <div class="flex gap-2 w-full md:w-auto self-start">
+ <button id="b_${item.id}_1" onclick="setScore('${item.id}',1)" class="px-4 py-2 border rounded-xl text-sm font-bold text-slate-500 hover:bg-emerald-50"><i class="fas fa-check"></i> Sesuai</button>
+ <button id="b_${item.id}_0" onclick="setScore('${item.id}',0)" class="px-4 py-2 border rounded-xl text-sm font-bold text-slate-500 hover:bg-rose-50"><i class="fas fa-times"></i> Belum</button>
+ </div>
+ </div>`;
+ });
+ container.innerHTML += html + `</div>`;
+ });
+ }
+
+ function updateNote(id, text) { 
+ auditData[id].note = text;
+ auditData[id].timestamp = getCurrentTimeWIB();
+ }
+
+ function setScore(id, score) {
+ auditData[id].score = score;
+ auditData[id].timestamp = getCurrentTimeWIB();
+ 
+ const b1 = document.getElementById(`b_${id}_1`), b0 = document.getElementById(`b_${id}_0`);
+ b1.className = score===1 ? 'px-4 py-2 border-2 border-emerald-500 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-bold shadow-sm' : 'px-4 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-500';
+ b0.className = score===0 ? 'px-4 py-2 border-2 border-rose-500 bg-rose-100 text-rose-700 rounded-xl text-sm font-bold shadow-sm' : 'px-4 py-2 border border-slate-300 rounded-xl text-sm font-bold text-slate-500';
+ const photoWrap=document.getElementById(`audit_photo_wrap_${id}`); if(photoWrap) photoWrap.classList.toggle('hidden',score!==0);
+ calcTotal();
+ }
+
+ function calcTotal() {
+ let total = 0;
+ for(let id in auditData) if(auditData[id].score === 0) total++;
+ document.getElementById('totalIssuesCounter').innerText = total;
+ document.getElementById('totalIssuesCounter').className = total > 0 ? 'text-4xl font-bold text-rose-500 leading-none' : 'text-4xl font-bold text-slate-400 leading-none';
+ }
+
+ function addTemuanKhususItem() {
+ const cat = document.getElementById('tkCategory').value;
+ const desc = document.getElementById('tkDesc').value.trim();
+ if(!desc) { showToast('Detail instruksi temuan tidak boleh kosong!', 'error'); return; }
+ 
+ const ts = getCurrentTimeWIB();
+ temuanKhususList.push({ id: 'tk_' + Date.now(), category: cat, desc: desc, followup: '', evidencePhoto:'', timestamp: ts });
+ 
+ document.getElementById('tkDesc').value = '';
+ renderTemuanKhususList();
+ }
+
+ function renderTemuanKhususList() {
+ const container = document.getElementById('tkList'); 
+ container.innerHTML = '';
+ document.getElementById('totalIssuesCounter').innerText = temuanKhususList.length;
+ document.getElementById('totalIssuesCounter').className = temuanKhususList.length > 0 ? 'text-4xl font-bold text-rose-500 leading-none' : 'text-4xl font-bold text-slate-400 leading-none';
+ 
+ if(temuanKhususList.length === 0) {
+ container.innerHTML = `<div class="p-6 text-center text-sm text-slate-400 italic border border-dashed rounded-2xl bg-slate-50">Belum ada temuan khusus yang ditambahkan.</div>`; 
+ return;
+ }
+ 
+ temuanKhususList.forEach((item, idx) => {
+ container.innerHTML += `
+ <div class="p-4 border border-purple-200 bg-white rounded-2xl shadow-sm flex justify-between items-start gap-4">
+ <div>
+ <span class="text-xs font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-md">${item.category}</span>
+ <span class="text-[10px] text-slate-400 ml-2 font-medium"><i class="far fa-clock"></i> ${item.timestamp}</span>
+ <p class="text-sm font-semibold mt-2 text-slate-800">${item.desc}</p>
+ <div class="mt-3"><label class="inline-flex items-center gap-2 px-3 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Ambil / Upload Foto Temuan<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureAuditPhoto('${item.id}',event,true)"></label>${evidenceThumbHtml(item.evidencePhoto,'Foto Temuan Auditor')}</div>
+ </div>
+ <button onclick="removeTkItem(${idx})" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i class="fas fa-trash"></i></button>
+ </div>`;
+ });
+ hydrateEvidenceImages(container);
+ }
+ function removeTkItem(idx) { temuanKhususList.splice(idx, 1); renderTemuanKhususList(); }
+
+ function submitAudit() {
+ if (selectedChecklistId !== 'temuan_khusus') {
+ let complete = true;
+ for(let id in auditData) if(auditData[id].score === null) complete = false;
+ if(!complete) { showToast('Harap selesaikan seluruh butir penilaian!', 'error'); return; }
+ } else if (temuanKhususList.length === 0) {
+ showToast('Tambahkan minimal 1 temuan khusus!', 'error'); return;
+ }
+ document.getElementById('confirmModal').classList.remove('hidden');
+ }
+
+ function closeConfirmModal() { document.getElementById('confirmModal').classList.add('hidden'); }
+
+ function executeSubmitAudit() {
+ closeConfirmModal();
+ let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ const key = `${selectedLocationId}_${selectedChecklistId}`;
+ const d = getCurrentDateTimeWIB();
+ 
+ if(selectedChecklistId === 'temuan_khusus') {
+ allAudits[key] = { date: d, locationId: selectedLocationId, checklistId: 'temuan_khusus', additionalFindings: temuanKhususList };
+ } else {
+ allAudits[key] = { date: d, data: auditData, locationId: selectedLocationId, checklistId: selectedChecklistId };
+ }
+ 
+ localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ showToast('Hasil inspeksi berhasil disimpan!', 'success');
+ setTimeout(() => backToSelection(), 1000);
+ }
+
+ function openApprovalMenu() {
+ document.getElementById('auditorDashboard').classList.add('hidden');
+ document.getElementById('reportSection').classList.remove('hidden');
+ initReportFilters('approval');
+ }
+
+ function openReportHistory() {
+ document.getElementById('managementDashboard').classList.add('hidden');
+ document.getElementById('auditorDashboard').classList.add('hidden');
+ document.getElementById('reportSection').classList.remove('hidden');
+ initReportFilters('auditor');
+ }
+
+ function initReportFilters(mode) {
+ reportMode = mode;
+ document.getElementById('reportBackBtn').classList.remove('hidden');
+ document.getElementById('btnExportPdf').classList.toggle('hidden', mode==='approval');
+ document.getElementById('auditeeSaveBtnContainer').classList.toggle('hidden', mode!=='auditee');
+ document.getElementById('statusFilterDiv').classList.toggle('hidden', mode==='approval');
+ 
+ const locSelect = document.getElementById('reportLocSelect'); 
+ locSelect.innerHTML = '';
+ locationsConfig.forEach(loc => locSelect.innerHTML += `<option value="${loc.id}">${loc.name}</option>`);
+ updateReportChecklistOptions();
+ }
+
+ function updateReportChecklistOptions() {
+ const locId = document.getElementById('reportLocSelect').value;
+ const chkSelect = document.getElementById('reportChecklistSelect'); 
+ chkSelect.innerHTML = '';
+ const loc = locationsConfig.find(l => l.id === locId);
+ if(loc) {
+ loc.allowedChecklists.forEach(c => {
+ if(checklistsData[c]) chkSelect.innerHTML += `<option value="${c}">${checklistsData[c].title}</option>`;
+ });
+ chkSelect.innerHTML += `<option value="temuan_khusus">Temuan Tambahan Khusus</option>`;
+ }
+ loadReport();
+ }
+
+ function loadReport() {
+ const locId = document.getElementById('reportLocSelect').value;
+ const chkId = document.getElementById('reportChecklistSelect').value;
+ const statusFilter = document.getElementById('reportStatusFilter').value;
+ 
+ currentFollowUps = {};
+ const key = `${locId}_${chkId}`;
+ const allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ const savedData = allAudits[key];
+ 
+ const container = document.getElementById('reportContentContainer');
+ document.getElementById('reportTitleText').innerText = chkId === 'temuan_khusus' ? 'Laporan Temuan Khusus' : (checklistsData[chkId]?.title || 'Laporan');
+ 
+ if (!savedData) {
+ container.innerHTML = `<div class="p-10 bg-slate-50 border border-slate-100 rounded-2xl text-center"><i class="fas fa-clipboard-list text-4xl text-slate-300 mb-3"></i><p class="text-slate-500 font-medium text-sm">Belum ada data audit untuk form ini.</p></div>`;
+ document.getElementById('auditDate').innerText = '--'; 
+ document.getElementById('reportCompliantCount').innerText = '0';
+ document.getElementById('reportIssuesCount').innerText = '0';
+ return;
+ }
+
+ document.getElementById('auditDate').innerText = savedData.date;
+ let compliantCount = 0;
+ let issuesCount = 0; 
+ let html = '';
+
+ if (chkId === 'temuan_khusus') {
+ const findings = savedData.additionalFindings || [];
+ findings.forEach(f => {
+ issuesCount++;
+ 
+ // Filter Mode Approval: hanya tampilkan yang pending
+ if (reportMode === 'approval' && (f.approved !== undefined || (!f.followup && !f.followupPhoto))) {
+ return;
+ }
+
+ currentFollowUps[f.id] = { text: f.followup || '', photo: f.followupPhoto || '' };
+
+ let auditorTsHtml = f.timestamp ? `<span class="text-[10px] text-slate-400 font-medium ml-2"><i class="far fa-clock"></i> ${f.timestamp}</span>` : '';
+ let auditeeTsHtml = f.followupTs ? `<span class="text-[10px] text-blue-500 font-medium ml-2"><i class="far fa-clock"></i> ${f.followupTs}</span>` : '';
+
+ let approvalButtons = '';
+ if (reportMode === 'approval' && (f.followup || f.followupPhoto)) {
+ approvalButtons = `
+ <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
+ <button onclick="setApproval('temuan_khusus', '${f.id}', false)" class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl text-xs font-bold transition-colors"><i class="fas fa-times mr-1"></i> Tolak Perbaikan</button>
+ <button onclick="setApproval('temuan_khusus', '${f.id}', true)" class="px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl text-xs font-bold transition-colors shadow-sm"><i class="fas fa-check mr-1"></i> Setujui (Approve)</button>
+ </div>`;
+ }
+
+ let statusBadge = f.approved === true ? '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md"><i class="fas fa-check-circle"></i> Disetujui Auditor</span>' :
+ (f.approved === false ? '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md"><i class="fas fa-exclamation-triangle"></i> Minta Perbaikan Ulang</span>' : 
+ ((f.followup || f.followupPhoto) ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md"><i class="fas fa-clock"></i> Menunggu Approval</span>' : '<span class="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-md">Belum Ditindaklanjuti</span>'));
+
+ let replyArea = currentUserRole === 'Auditee' ? 
+ `<textarea onchange="currentFollowUps['${f.id}'].text=this.value" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${f.followup||''}</textarea><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Ambil / Upload Foto Tindak Lanjut<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${f.id}',event)"></label><div id="followup_photo_preview_${f.id}">${evidenceThumbHtml(f.followupPhoto,'Foto Tindak Lanjut Auditee')}</div></div>` : 
+ `<div class="mt-3 text-sm italic text-blue-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100"><i class="fas fa-reply mr-1.5 text-blue-400"></i> ${f.followup || 'Belum ada respon perbaikan'} ${auditeeTsHtml}</div>${evidenceThumbHtml(f.followupPhoto,'Foto Tindak Lanjut Auditee')}`;
+
+ html += `
+ <div class="p-5 border border-slate-200 bg-white rounded-2xl shadow-sm break-inside-avoid space-y-2">
+ <div class="flex justify-between items-center">
+ <span class="px-2.5 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-md">${f.category}</span>
+ ${statusBadge}
+ </div>
+ <p class="font-bold text-sm text-slate-800">${f.desc} ${auditorTsHtml}</p>
+ ${evidenceThumbHtml(f.evidencePhoto,'Foto Temuan Auditor')}
+ ${replyArea}
+ ${approvalButtons}
+ </div>`;
+ });
+ } else {
+ for (let id in savedData.data) {
+ const item = savedData.data[id];
+ let soalTxt = 'Poin Checklist';
+ checklistsData[chkId].categories.forEach(c => c.items.forEach(i => { if(i.id===id) soalTxt=i.text; }));
+
+ if (item.score === 1) {
+ compliantCount++;
+ if (statusFilter === 'ISSUES_ONLY' || reportMode === 'approval') continue;
+ 
+ html += `
+ <div class="p-4 border border-emerald-200 bg-emerald-50/40 rounded-2xl flex justify-between items-center break-inside-avoid">
+ <span class="font-semibold text-sm text-slate-800">${soalTxt}</span>
+ <span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md"><i class="fas fa-check-circle mr-1"></i> Sesuai</span>
+ </div>`;
+ } else if (item.score === 0) {
+ issuesCount++;
+ if (statusFilter === 'COMPLIANT_ONLY') continue;
+ if (reportMode === 'approval' && (item.approved !== undefined || (!item.followup && !item.followupPhoto))) continue;
+
+ currentFollowUps[id] = { text: item.followup || '', photo: item.followupPhoto || '' };
+ let auditorTsHtml = item.timestamp ? `<span class="text-[10px] text-slate-400 font-medium ml-2"><i class="far fa-clock"></i> ${item.timestamp}</span>` : '';
+ let auditeeTsHtml = item.followupTs ? `<span class="text-[10px] text-blue-500 font-medium ml-2"><i class="far fa-clock"></i> ${item.followupTs}</span>` : '';
+
+ let approvalButtons = '';
+ if (reportMode === 'approval' && (item.followup || item.followupPhoto)) {
+ approvalButtons = `
+ <div class="mt-4 pt-3 border-t border-slate-100 flex gap-2 justify-end">
+ <button onclick="setApproval('${chkId}', '${id}', false)" class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-xl text-xs font-bold transition-colors"><i class="fas fa-times mr-1"></i> Tolak Perbaikan</button>
+ <button onclick="setApproval('${chkId}', '${id}', true)" class="px-4 py-2 bg-emerald-500 text-white hover:bg-emerald-600 rounded-xl text-xs font-bold transition-colors shadow-sm"><i class="fas fa-check mr-1"></i> Setujui (Approve)</button>
+ </div>`;
+ }
+
+ let statusBadge = item.approved === true ? '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md"><i class="fas fa-check-circle"></i> Disetujui Auditor</span>' :
+ (item.approved === false ? '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md"><i class="fas fa-exclamation-triangle"></i> Minta Perbaikan Ulang</span>' : 
+ ((item.followup || item.followupPhoto) ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md"><i class="fas fa-clock"></i> Menunggu Approval</span>' : '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md">Belum Sesuai</span>'));
+
+ let replyArea = currentUserRole === 'Auditee' ? 
+ `<textarea onchange="currentFollowUps['${id}'].text=this.value" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${item.followup||''}</textarea><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Ambil / Upload Foto Tindak Lanjut<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${id}',event)"></label><div id="followup_photo_preview_${id}">${evidenceThumbHtml(item.followupPhoto,'Foto Tindak Lanjut Auditee')}</div></div>` : 
+ `<div class="mt-3 text-sm italic text-blue-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100"><i class="fas fa-reply mr-1.5 text-blue-400"></i> ${item.followup || 'Belum ada respon perbaikan'} ${auditeeTsHtml}</div>${evidenceThumbHtml(item.followupPhoto,'Foto Tindak Lanjut Auditee')}`;
+
+ html += `
+ <div class="p-5 border border-slate-200 bg-white rounded-2xl shadow-sm break-inside-avoid space-y-2">
+ <div class="flex justify-between items-center">
+ <span class="font-bold text-sm text-slate-800">${soalTxt} ${auditorTsHtml}</span>
+ ${statusBadge}
+ </div>
+ <div class="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-xl border border-rose-100 flex items-center gap-2 font-medium">
+ <i class="fas fa-exclamation-circle"></i> <span>Catatan Auditor: ${item.note||'-'}</span>
+ </div>
+ ${evidenceThumbHtml(item.evidencePhoto,'Foto Temuan Auditor')}
+ ${replyArea}
+ ${approvalButtons}
+ </div>`;
+ }
+ }
+ }
+
+ document.getElementById('reportCompliantCount').innerText = compliantCount;
+ document.getElementById('reportIssuesCount').innerText = issuesCount;
+ 
+ container.innerHTML = html || `<div class="p-8 bg-emerald-50 text-emerald-700 rounded-2xl font-bold text-center border border-emerald-100"><i class="fas fa-check-circle text-3xl mb-2"></i><p>Tidak ada item yang perlu ditampilkan.</p></div>`;
+ hydrateEvidenceImages(container);
+ }
+
+ function setApproval(chkId, id, isApproved) {
+ const locId = document.getElementById('reportLocSelect').value;
+ const key = `${locId}_${chkId}`;
+ let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+
+ if (allAudits[key]) {
+ const ts = getCurrentDateTimeWIB();
+ if (chkId === 'temuan_khusus') {
+ const item = allAudits[key].additionalFindings.find(f => f.id === id);
+ if (item) {
+ item.approved = isApproved;
+ item.approvalTs = ts;
+ }
+ } else {
+ if (allAudits[key].data[id]) {
+ allAudits[key].data[id].approved = isApproved;
+ allAudits[key].data[id].approvalTs = ts;
+ }
+ }
+ localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ showToast(isApproved ? 'Tindak lanjut disetujui!' : 'Permintaan perbaikan dikirim ulang ke Auditee', isApproved ? 'success' : 'info');
+ loadReport();
+ updatePendingBadgeCount();
+ }
+ }
+
+
+ async function notifyAuditorsWhatsApp(locId,chkId){try{const{data,error}=await sb.functions.invoke('audit5s-whatsapp-notify',{body:{location_id:locId,checklist_id:chkId,event:'followup_submitted'}});if(error)throw error;if(data?.configured===false){showToast('Tindak lanjut tersimpan. WhatsApp belum dikonfigurasi di server.','info');return;}if(data?.sent>0)showToast(`Notifikasi WhatsApp dikirim ke ${data.sent} auditor.`,'success');}catch(e){console.warn(e);showToast('Tindak lanjut tersimpan, tetapi notifikasi WhatsApp gagal dikirim.','info');}}
+
+ function saveFollowUps() {
+ const locId = document.getElementById('reportLocSelect').value;
+ const chkId = document.getElementById('reportChecklistSelect').value;
+ const key = `${locId}_${chkId}`;
+ let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+
+ if (allAudits[key]) {
+ const ts = getCurrentDateTimeWIB();
+ if (chkId === 'temuan_khusus') {
+ allAudits[key].additionalFindings.forEach(f => {
+ if (currentFollowUps[f.id]) {
+ f.followup = currentFollowUps[f.id].text;
+ f.followupPhoto = currentFollowUps[f.id].photo || f.followupPhoto || '';
+ f.followupTs = ts;
+ f.approved = undefined; // Reset status pending approval
+ }
+ });
+ } else {
+ for (let id in currentFollowUps) {
+ if (allAudits[key].data[id]) {
+ allAudits[key].data[id].followup = currentFollowUps[id].text;
+ allAudits[key].data[id].followupPhoto = currentFollowUps[id].photo || allAudits[key].data[id].followupPhoto || '';
+ allAudits[key].data[id].followupTs = ts;
+ allAudits[key].data[id].approved = undefined;
+ }
+ }
+ }
+ localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ showToast('Tindak lanjut berhasil dikirim ke Auditor!', 'success');
+ notifyAuditorsWhatsApp(locId,chkId);
+ loadReport();
+ }
+ }
+
+ function exportToPDF() {
+ const el = document.getElementById('reportCard');
+ const opt = {
+ margin: 0.3,
+ filename: `Laporan_Audit_5S_${Date.now()}.pdf`,
+ image: { type: 'jpeg', quality: 0.98 },
+ html2canvas: { scale: 2 },
+ jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+ };
+ html2pdf().set(opt).from(el).save();
+ }
+
+ function renderAdminUserTable() {
+ const tbody = document.getElementById('adminUserTableBody');
+ tbody.innerHTML = '';
+ usersData.forEach((u, idx) => {
+ tbody.innerHTML += `
+ <tr class="hover:bg-slate-50 transition-colors">
+ <td class="p-3.5 font-bold text-slate-800">${u.name}</td>
+ <td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td>
+ <td class="p-3.5 font-medium text-slate-600 text-xs">${u.assignedLoc}</td>
+ <td class="p-3.5 text-center">
+ <button onclick="deleteUser(${idx})" class="text-rose-500 hover:text-rose-700 p-1.5"><i class="fas fa-trash"></i></button>
+ </td>
+ </tr>`;
+ });
+ }
+ function deleteUser(idx) {
+ usersData.splice(idx, 1);
+ saveConfigToLocal();
+ renderAdminUserTable();
+ showToast('User berhasil dihapus', 'info');
+ }
+
+ window.onload = async function() {
+   await syncFromCloud();
+   window.addEventListener('focus', () => syncFromCloud());
+ };
+
+ // ===== PRODUCTION AUTH OVERRIDES =====
+ let currentAuthUser = null;
+ let currentAssignedLoc = 'ALL';
+
+ function hideAllMainSections() {
+   ['managementDashboard','auditorDashboard','selectionSection','auditorSection','reportSection','adminDashboard'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+ }
+
+ async function enterAuthenticatedApp(user) {
+   currentAuthUser = user;
+   currentUserRole = user?.app_metadata?.role || null;
+   currentAssignedLoc = user?.app_metadata?.assigned_loc || 'ALL';
+   currentUserName = user?.user_metadata?.full_name || user?.phone || user?.email || 'User';
+   if (!currentUserRole) throw new Error('Role akun belum dikonfigurasi oleh Admin.');
+   document.getElementById('loginSection').classList.add('hidden');
+   document.getElementById('userInfo').classList.remove('hidden');
+   document.getElementById('userRoleDisplay').innerText = currentUserRole;
+   document.getElementById('userNameDisplay').innerText = currentUserName;
+   hideAllMainSections();
+   await syncFromCloud();
+   if (currentUserRole === 'Management') {
+     document.getElementById('managementDashboard').classList.remove('hidden'); renderManagementDashboard();
+   } else if (currentUserRole === 'Auditor') {
+     document.getElementById('auditorDashboard').classList.remove('hidden'); updateLocFilterDropdown(); updateAuditorStats(); updatePendingBadgeCount();
+   } else if (currentUserRole === 'Auditee') {
+     document.getElementById('reportSection').classList.remove('hidden'); initReportFilters('auditee');
+   } else if (currentUserRole === 'Admin') {
+     document.getElementById('adminDashboard').classList.remove('hidden'); switchAdminTab('loc');
+   }
+ }
+
+
+ function openAdminRecoveryModal(){
+   const existing=document.getElementById('loginEmail')?.value?.trim()||'';
+   if(existing.includes('@')) document.getElementById('recoveryEmail').value=existing;
+   document.getElementById('adminRecoveryModal').classList.remove('hidden');
+ }
+ function closeAdminRecoveryModal(){ document.getElementById('adminRecoveryModal').classList.add('hidden'); }
+ async function recoverAdminPassword(){
+   const email=document.getElementById('recoveryEmail').value.trim().toLowerCase();
+   const password=document.getElementById('recoveryPassword').value;
+   const recovery_code=document.getElementById('recoveryCode').value.trim();
+   if(!email.includes('@')){showToast('Masukkan email Admin lama yang valid.','error');return;}
+   if(password.length<6){showToast('Password baru minimal 6 karakter.','error');return;}
+   if(!recovery_code){showToast('Kode pemulihan wajib diisi.','error');return;}
+   try{
+     const {data,error}=await sb.functions.invoke('audit5s-admin-recovery',{body:{email,password,recovery_code}});
+     if(error){let msg=error.message||'Pemulihan gagal'; try{const ctx=await error.context?.json?.();if(ctx?.error)msg=ctx.error}catch{} throw new Error(msg)}
+     if(data?.error)throw new Error(data.error);
+     closeAdminRecoveryModal();
+     document.getElementById('loginEmail').value=email;
+     document.getElementById('loginPassword').value=password;
+     document.getElementById('recoveryPassword').value='';
+     document.getElementById('recoveryCode').value='';
+     showToast('Password Admin berhasil diperbarui. Silakan login.','success');
+   }catch(e){showToast(e.message||'Pemulihan Admin gagal','error')}
+ }
+
+ async function authLogin() {
+   const rawLogin = document.getElementById('loginEmail').value.trim();
+   const password = document.getElementById('loginPassword').value;
+   const btn = document.getElementById('loginBtn'); btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Memeriksa...';
+   try {
+     const login=normalizeIndoPhone(rawLogin);
+     let data=null, error=null;
+     if(login.includes('@')) {
+       ({data,error}=await sb.auth.signInWithPassword({email:login,password}));
+     } else {
+       // Supabase Auth may persist Indonesian phone identities as 62... (without +),
+       // while the UI normalizes them to +62.... Try both canonical variants.
+       const variants=[login, login.startsWith('+') ? login.slice(1) : '+'+login];
+       for(const phone of [...new Set(variants)]) {
+         const result=await sb.auth.signInWithPassword({phone,password});
+         data=result.data; error=result.error;
+         if(!error && data?.user) break;
+       }
+     }
+     if(error)throw error;
+     await enterAuthenticatedApp(data.user);
+     showToast('Login berhasil','success');
+   }
+   catch(e){showToast(e.message||'Login gagal','error');}
+   finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-sign-in-alt mr-2"></i>Masuk';}
+ }
+
+ async function logout() {
+   await sb.auth.signOut();
+   currentAuthUser = null; currentUserRole = null; currentUserName = ''; cloudReady = false;
+   hideAllMainSections();
+   document.getElementById('userInfo').classList.add('hidden');
+   document.getElementById('loginSection').classList.remove('hidden');
+ }
+
+ function openBootstrapModal(){ document.getElementById('bootstrapModal').classList.remove('hidden'); }
+ function closeBootstrapModal(){ document.getElementById('bootstrapModal').classList.add('hidden'); }
+ async function bootstrapAdmin(){
+   try {
+     const payload = { bootstrap_code: document.getElementById('bootstrapCode').value, full_name: document.getElementById('bootstrapName').value.trim(), phone: normalizeIndoPhone(document.getElementById('bootstrapEmail').value.trim()), password: document.getElementById('bootstrapPassword').value };
+     const { data, error } = await sb.functions.invoke('audit5s-bootstrap-admin', { body: payload });
+     if (error) throw error; if (data?.error) throw new Error(data.error);
+     closeBootstrapModal(); document.getElementById('loginEmail').value = payload.phone; document.getElementById('loginPassword').value = payload.password;
+     showToast('Admin pertama berhasil dibuat. Silakan login.', 'success');
+   } catch(e){ showToast(e.message || 'Setup Admin gagal', 'error'); }
+ }
+
+ function openAdminUserModal(){ document.getElementById('adminUserModal').classList.remove('hidden'); }
+ function closeAdminUserModal(){ document.getElementById('adminUserModal').classList.add('hidden'); }
+ async function invokeFunctionDetailed(name, body){
+   const { data, error } = await sb.functions.invoke(name, { body });
+   if (error) {
+     let msg = error.message || 'Edge Function gagal';
+     try { if (error.context && typeof error.context.json === 'function') { const payload = await error.context.json(); msg = payload?.error || payload?.message || msg; } } catch(_) {}
+     throw new Error(msg);
+   }
+   if (data?.error) throw new Error(data.error);
+   return data;
+ }
+ async function saveCloudUser(){
+   const name=document.getElementById('newUserName').value.trim(),phone=normalizeIndoPhone(document.getElementById('newUserPhone').value.trim()),password=document.getElementById('newUserPassword').value,role=document.getElementById('newUserRole').value,assigned=document.getElementById('newUserAssignedLoc').value.trim()||'ALL';
+   if(!name||!phone){showToast('Nama dan nomor HP wajib diisi.','error');return;}if(!/^\+\d{9,15}$/.test(phone)){showToast('Format nomor HP tidak valid. Gunakan contoh 081234567890.','error');return;}if(password.length<6){showToast('Password minimal 6 karakter.','error');return;}
+   try{await invokeFunctionDetailed('audit5s-user-admin',{action:'create',full_name:name,phone,password,role,assigned_loc:assigned});closeAdminUserModal();['newUserName','newUserPhone','newUserPassword'].forEach(id=>document.getElementById(id).value='');document.getElementById('newUserAssignedLoc').value='ALL';showToast(`Akun ${role} berhasil dibuat`,'success');await renderAdminUserTable();}catch(e){showToast(e.message||'Gagal membuat akun','error');}
+ }
+
+ async function renderAdminUserTable(){
+   const tbody = document.getElementById('adminUserTableBody'); if (!tbody) return;
+   tbody.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-slate-400">Memuat akun...</td></tr>';
+   try {
+     const data = await invokeFunctionDetailed('audit5s-user-admin', {action:'list'});
+     usersData = (data.users || []).map(u => ({ id:u.user_id, phone:u.phone||'', email:u.email||'', name:u.full_name, role:u.role, assignedLoc:u.assigned_loc }));
+     tbody.innerHTML = usersData.length ? usersData.map(u => `<tr class="hover:bg-slate-50"><td class="p-3.5"><div class="font-bold text-slate-800">${u.name}</div><div class="text-xs ${u.phone?'text-emerald-600':'text-amber-600'}">${u.phone || 'Belum ada nomor HP (akun legacy)'}</div></td><td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td><td class="p-3.5 text-xs text-slate-600">${u.assignedLoc}</td><td class="p-3.5 text-center whitespace-nowrap"><button onclick="updateCloudUserPhone('${u.id}','${u.phone||''}')" class="text-blue-500 hover:text-blue-700 p-1.5" title="Set/Ubah Nomor HP"><i class="fas fa-mobile-alt"></i></button><button onclick="deleteCloudUser('${u.id}')" class="text-rose-500 hover:text-rose-700 p-1.5" title="Hapus akun"><i class="fas fa-trash"></i></button></td></tr>`).join('') : '<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada akun.</td></tr>';
+   } catch(e){ tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-rose-500">${e.message}</td></tr>`; }
+ }
+ async function deleteCloudUser(userId){
+   if (!confirm('Hapus akun ini?')) return;
+   try { await invokeFunctionDetailed('audit5s-user-admin',{action:'delete',user_id:userId}); showToast('Akun dihapus','success'); await renderAdminUserTable(); } catch(e){ showToast(e.message||'Gagal menghapus akun','error'); }
+ }
+
+ async function updateCloudUserPhone(userId,currentPhone=''){
+   const raw=prompt('Masukkan nomor HP user (contoh 081234567890):',currentPhone||''); if(raw===null)return;
+   const phone=normalizeIndoPhone(raw); if(!/^\+\d{9,15}$/.test(phone)){showToast('Format nomor HP tidak valid.','error');return;}
+   try{await invokeFunctionDetailed('audit5s-user-admin',{action:'update_phone',user_id:userId,phone});showToast('Nomor HP berhasil diperbarui. User sekarang dapat login dengan nomor HP dan password yang sama.','success');await renderAdminUserTable();}
+   catch(e){showToast(e.message||'Gagal memperbarui nomor HP','error');}
+ }
+
+ // Disable legacy role shortcut/admin password flow.
+ function loginQuick(){ showToast('Gunakan nomor HP dan password akun.', 'info'); }
+ function showAdminLogin(){ openBootstrapModal(); }
+ function doAdminLogin(){ showToast('Login Admin sekarang menggunakan Supabase Auth.', 'info'); }
+
+ window.onload = async function() {
+   const { data } = await sb.auth.getSession();
+   if (data?.session?.user) {
+     try { await enterAuthenticatedApp(data.session.user); } catch(e){ await sb.auth.signOut(); showToast(e.message, 'error'); }
+   }
+   window.addEventListener('focus', async () => { if (currentAuthUser) await syncFromCloud(); });
+ };
+
+ </script>
+
+ <div class="fixed bottom-3 left-3 z-40 text-[10px] bg-white/90 border border-slate-200 shadow-sm rounded-full px-3 py-1.5 text-slate-500" title="Data aplikasi tersimpan di database bersama Supabase"><i class="fas fa-cloud text-brand-500 mr-1"></i> Multi-device Cloud Sync</div>
+
+</body>
+</html>
