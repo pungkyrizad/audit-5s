@@ -1907,17 +1907,24 @@
      let data=null, error=null;
      if(login.includes('@')) {
        ({data,error}=await sb.auth.signInWithPassword({email:login,password}));
+       if(error)throw error;
      } else {
-       // Supabase Auth may persist Indonesian phone identities as 62... (without +),
-       // while the UI normalizes them to +62.... Try both canonical variants.
-       const variants=[login, login.startsWith('+') ? login.slice(1) : '+'+login];
-       for(const phone of [...new Set(variants)]) {
-         const result=await sb.auth.signInWithPassword({phone,password});
-         data=result.data; error=result.error;
-         if(!error && data?.user) break;
+       // Phone Provider Supabase is intentionally not required. The Edge Function
+       // maps the phone number to the user's internal Auth identity, verifies the
+       // same password, and returns a normal Supabase session.
+       const result=await sb.functions.invoke('audit5s-phone-password-login',{body:{phone:login,password}});
+       if(result.error){
+         let msg=result.error.message||'Login gagal';
+         try{const ctx=await result.error.context?.json?.();if(ctx?.error)msg=ctx.error}catch{}
+         throw new Error(msg);
        }
+       if(result.data?.error)throw new Error(result.data.error);
+       if(!result.data?.access_token||!result.data?.refresh_token)throw new Error('Sesi login tidak valid.');
+       const sessionResult=await sb.auth.setSession({access_token:result.data.access_token,refresh_token:result.data.refresh_token});
+       if(sessionResult.error)throw sessionResult.error;
+       data=sessionResult.data;
      }
-     if(error)throw error;
+     if(!data?.user)throw new Error('User tidak ditemukan setelah login.');
      await enterAuthenticatedApp(data.user);
      showToast('Login berhasil','success');
    }
