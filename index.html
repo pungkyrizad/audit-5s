@@ -106,6 +106,9 @@
    <i class="fas fa-bell text-lg"></i>
    <span id="auditorNotificationCount" class="hidden absolute -top-1 -right-1 min-w-[19px] h-[19px] px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full border-2 border-white flex items-center justify-center">0</span>
  </button>
+ <button id="financeNavBtn" onclick="openFinanceModule()" class="hidden p-2 text-slate-400 hover:text-emerald-600 transition-colors bg-slate-50 hover:bg-emerald-50 rounded-full h-10 w-10 items-center justify-center" title="Pengelolaan Keuangan 5S">
+   <i class="fas fa-wallet text-lg"></i>
+ </button>
  <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-full h-10 w-10 flex items-center justify-center" title="Keluar">
  <i class="fas fa-sign-out-alt"></i>
  </button>
@@ -270,6 +273,18 @@
  </div>
  <div class="flex flex-wrap gap-2"><button onclick="openAdminUserPdfModal()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"><i class="fas fa-file-pdf mr-1"></i> Upload PDF User</button><button onclick="openAdminUserModal()" class="px-4 py-2 bg-brand-500 text-white rounded-xl text-sm font-semibold hover:bg-brand-600 transition-colors shadow-sm"><i class="fas fa-user-plus mr-1"></i> Tambah User</button></div>
  </div>
+ <div id="financeVisibilitySettings" class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+   <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+     <div><h3 class="font-bold text-slate-800"><i class="fas fa-wallet text-emerald-600 mr-2"></i>Pengaturan Modul Keuangan</h3><p class="text-xs text-slate-500 mt-1">Admin dapat mengaktifkan modul dan menampilkan/menyembunyikannya per role. Pengaturan Admin tetap tersedia walaupun modul dimatikan.</p></div>
+     <button onclick="saveFinanceSettings()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold"><i class="fas fa-save mr-1.5"></i>Simpan Pengaturan</button>
+   </div>
+   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 text-sm">
+     <label class="flex items-center gap-3 bg-white border border-emerald-100 rounded-xl p-3 cursor-pointer"><input id="financeEnabledToggle" type="checkbox" class="w-4 h-4 accent-emerald-600"><span><b>Modul Aktif</b><small class="block text-[10px] text-slate-500">Master seluruh fungsi</small></span></label>
+     <label class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 cursor-pointer"><input id="financeShowManagement" type="checkbox" class="w-4 h-4 accent-emerald-600"><span><b>Management</b><small class="block text-[10px] text-slate-500">Overview semua lokasi</small></span></label>
+     <label class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 cursor-pointer"><input id="financeShowAuditor" type="checkbox" class="w-4 h-4 accent-emerald-600"><span><b>Auditor</b><small class="block text-[10px] text-slate-500">Overview / pengelola dana</small></span></label>
+     <label class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-3 cursor-pointer"><input id="financeShowAuditee" type="checkbox" class="w-4 h-4 accent-emerald-600"><span><b>Auditee</b><small class="block text-[10px] text-slate-500">Entry realisasi lokasi</small></span></label>
+   </div>
+ </div>
  <div class="overflow-x-auto">
  <table class="w-full text-left border-collapse">
  <thead>
@@ -334,6 +349,57 @@
  <span class="mt-4 text-xs font-bold text-slate-700 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">Lihat Rekap <i class="fas fa-arrow-right text-[10px]"></i></span>
  </button>
  </div>
+ </div>
+
+ <!-- FINANCE MODULE -->
+ <div id="financeSection" class="hidden w-full max-w-6xl space-y-6 mt-4">
+   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+     <div><button onclick="backToDashboard()" class="text-xs font-bold text-slate-500 hover:text-slate-800 mb-2"><i class="fas fa-arrow-left mr-1"></i>Kembali</button><h2 class="text-2xl font-extrabold text-slate-800"><i class="fas fa-wallet text-emerald-600 mr-2"></i>Pengelolaan Keuangan 5S</h2><p id="financeRoleHint" class="text-xs text-slate-500 mt-1">Anggaran, persekot, realisasi, dan saldo per lokasi.</p></div>
+     <select id="financeLocationFilter" onchange="loadFinanceOverview()" class="w-full md:w-64 p-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold outline-none"><option value="ALL">Semua Lokasi</option></select>
+   </div>
+   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"><div class="text-[11px] uppercase font-bold text-slate-500">Dana Tersedia</div><div id="financeFunds" class="text-xl md:text-2xl font-extrabold text-emerald-600 mt-2">Rp0</div></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"><div class="text-[11px] uppercase font-bold text-slate-500">Realisasi</div><div id="financeSpent" class="text-xl md:text-2xl font-extrabold text-blue-600 mt-2">Rp0</div></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"><div class="text-[11px] uppercase font-bold text-slate-500">Sisa Dana</div><div id="financeBalance" class="text-xl md:text-2xl font-extrabold text-slate-800 mt-2">Rp0</div></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm"><div class="text-[11px] uppercase font-bold text-slate-500">Menunggu Verifikasi</div><div id="financePending" class="text-xl md:text-2xl font-extrabold text-amber-600 mt-2">0</div></div>
+   </div>
+
+   <div id="financeBudgetInput" class="hidden bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+     <h3 class="text-lg font-bold text-slate-800"><i class="fas fa-coins text-amber-500 mr-2"></i>Input Anggaran / Persekot</h3><p class="text-xs text-slate-500 mt-1 mb-4">Khusus Admin dan Auditor yang diberi hak Pengelola Keuangan.</p>
+     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+       <select id="financeBudgetLocation" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50"></select>
+       <input id="financeBudgetPeriod" type="month" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <select id="financeBudgetKind" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50"><option>Anggaran</option><option>Persekot</option><option>Tambahan</option><option>Pengembalian</option></select>
+       <input id="financeBudgetAmount" type="number" min="1" step="1" placeholder="Nominal Rp" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <input id="financeBudgetSource" placeholder="Sumber dana" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50 md:col-span-2">
+       <input id="financeBudgetNote" placeholder="Keterangan" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50 md:col-span-2">
+     </div><button onclick="saveFinanceBudget()" class="mt-4 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-sm"><i class="fas fa-plus mr-1.5"></i>Simpan Anggaran</button>
+   </div>
+
+   <div id="financeExpenseInput" class="hidden bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+     <h3 class="text-lg font-bold text-slate-800"><i class="fas fa-receipt text-blue-500 mr-2"></i>Entry Realisasi Pembelanjaan</h3><p class="text-xs text-slate-500 mt-1 mb-4">Auditee hanya dapat mencatat realisasi pada lokasi penugasannya.</p>
+     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+       <select id="financeExpenseLocation" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50"></select>
+       <input id="financeExpenseDate" type="date" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <input id="financeExpenseAmount" type="number" min="1" placeholder="Nominal Rp" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <input id="financeExpenseCategory" placeholder="Jenis/kategori belanja" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <input id="financeExpenseVendor" placeholder="Vendor/toko" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <input id="financeExpenseReceipt" placeholder="No. nota/invoice" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50">
+       <select id="financeExpensePayment" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50"><option>Sudah dibayar</option><option>Belum dibayar</option></select>
+       <input id="financeExpenseEvidence" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50 md:col-span-2">
+       <textarea id="financeExpenseDescription" rows="2" placeholder="Keterangan pembelanjaan / perbaikan" class="p-2.5 border border-slate-300 rounded-xl bg-slate-50 md:col-span-2 lg:col-span-3"></textarea>
+     </div><button id="financeExpenseSaveBtn" onclick="saveFinanceExpense()" class="mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm"><i class="fas fa-paper-plane mr-1.5"></i>Kirim Realisasi</button>
+   </div>
+
+   <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+     <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fas fa-building text-indigo-500 mr-2"></i>Overview per Lokasi</h3>
+     <div class="overflow-x-auto"><table class="w-full text-sm min-w-[720px]"><thead class="bg-slate-50 text-xs text-slate-500 uppercase"><tr><th class="p-3 text-left">Lokasi</th><th class="p-3 text-right">Dana</th><th class="p-3 text-right">Realisasi</th><th class="p-3 text-right">Sisa</th><th class="p-3 text-center">Pending</th></tr></thead><tbody id="financeLocationOverview" class="divide-y divide-slate-100"></tbody></table></div>
+   </div>
+
+   <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"><h3 class="font-bold text-slate-800 mb-4">Riwayat Anggaran / Persekot</h3><div class="overflow-auto max-h-[420px]"><table class="w-full text-xs min-w-[620px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2 text-left">Lokasi</th><th class="p-2 text-left">Periode</th><th class="p-2 text-left">Jenis</th><th class="p-2 text-right">Nominal</th><th class="p-2 text-left">Keterangan</th></tr></thead><tbody id="financeBudgetTable" class="divide-y divide-slate-100"></tbody></table></div></div>
+     <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm"><h3 class="font-bold text-slate-800 mb-4">Realisasi Pembelanjaan</h3><div class="overflow-auto max-h-[420px]"><table class="w-full text-xs min-w-[850px]"><thead class="sticky top-0 bg-slate-50"><tr><th class="p-2 text-left">Tanggal/Lokasi</th><th class="p-2 text-left">Uraian</th><th class="p-2 text-right">Nominal</th><th class="p-2 text-center">Status</th><th class="p-2 text-center">Bukti</th><th class="p-2 text-center">Aksi</th></tr></thead><tbody id="financeExpenseTable" class="divide-y divide-slate-100"></tbody></table></div></div>
+   </div>
  </div>
 
  <!-- SELECTION SECTION -->
@@ -620,8 +686,9 @@
  <input id="newUserPhone" type="tel" placeholder="Nomor HP login, contoh 081234567890" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
  <input id="newUserPassword" type="password" placeholder="Password awal / password baru (min. 6 karakter)" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
  <p id="editPasswordHint" class="hidden text-[11px] text-slate-500 -mt-1">Kosongkan password jika tidak ingin mengubah password user.</p>
- <select id="newUserRole" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"><option>Management</option><option>Auditor</option><option>Auditee</option><option>Admin</option></select>
+ <select id="newUserRole" onchange="toggleFinanceManagerField()" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none"><option>Management</option><option>Auditor</option><option>Auditee</option><option>Admin</option></select>
  <input id="newUserAssignedLoc" type="text" value="ALL" placeholder="ID lokasi penugasan / ALL" class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none">
+ <label id="financeManagerField" class="hidden items-start gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl cursor-pointer"><input id="newUserCanManageFinance" type="checkbox" class="mt-0.5 w-4 h-4 accent-emerald-600"><span class="text-xs text-slate-700"><b>Auditor Pengelola Keuangan</b><span class="block text-[10px] text-slate-500 mt-0.5">Boleh menginput anggaran/persekot untuk seluruh lokasi dan memverifikasi realisasi Auditee.</span></span></label>
  <p class="text-[11px] text-slate-500">Untuk Auditee, isi ID lokasi persis seperti yang ada di Kelola Lokasi. Bila lebih dari satu lokasi, pisahkan dengan koma.</p>
  </div>
  <button id="bulkUserImportBtn" onclick="closeAdminUserModal();openAdminUserPdfModal()" class="w-full mt-4 py-2.5 border border-emerald-200 bg-emerald-50 text-emerald-700 rounded-xl font-semibold text-sm"><i class="fas fa-file-pdf mr-1.5"></i> Import Banyak User dari PDF</button>
@@ -901,7 +968,7 @@
  
  if(tab==='loc') renderAdminLocTable();
  if(tab==='form') renderAdminForms();
- if(tab==='user') renderAdminUserTable();
+ if(tab==='user'){ renderAdminUserTable(); loadFinanceSettings(true); }
  }
 
  function renderAdminLocTable() {
@@ -1819,7 +1886,7 @@
  tbody.innerHTML += `
  <tr class="hover:bg-slate-50 transition-colors">
  <td class="p-3.5 font-bold text-slate-800">${u.name}</td>
- <td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td>
+ <td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}${u.canManageFinance?'<span class="block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 w-fit"><i class="fas fa-wallet mr-1"></i>Pengelola Keuangan</span>':''}</td>
  <td class="p-3.5 font-medium text-slate-600 text-xs">${u.assignedLoc}</td>
  <td class="p-3.5 text-center">
  <button onclick="deleteUser(${idx})" class="text-rose-500 hover:text-rose-700 p-1.5"><i class="fas fa-trash"></i></button>
@@ -1844,7 +1911,7 @@
  let currentAssignedLoc = 'ALL';
 
  function hideAllMainSections() {
-   ['managementDashboard','auditorDashboard','selectionSection','auditorSection','reportSection','adminDashboard'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+   ['managementDashboard','auditorDashboard','selectionSection','auditorSection','reportSection','adminDashboard','financeSection'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
  }
 
  async function enterAuthenticatedApp(user) {
@@ -1861,6 +1928,7 @@
    stopAuditorApprovalSync();
    updateAuditorNotificationBell(0);
    await syncFromCloud();
+   await loadFinanceSettings(false);
    if (currentUserRole === 'Management') {
      document.getElementById('managementDashboard').classList.remove('hidden'); renderManagementDashboard();
    } else if (currentUserRole === 'Auditor') {
@@ -1938,6 +2006,7 @@
    stopAuditorApprovalSync();
    currentAuthUser = null; currentUserRole = null; currentUserName = ''; cloudReady = false;
    updateAuditorNotificationBell(0);
+   const fbtn=document.getElementById('financeNavBtn'); if(fbtn){fbtn.classList.add('hidden');fbtn.classList.remove('flex');}
    hideAllMainSections();
    document.getElementById('userInfo').classList.add('hidden');
    document.getElementById('loginSection').classList.remove('hidden');
@@ -1976,6 +2045,7 @@
    document.getElementById('newUserPassword').value='';
    document.getElementById('newUserRole').value=u?.role||'Management';
    document.getElementById('newUserAssignedLoc').value=u?.assignedLoc||'ALL';
+   document.getElementById('newUserCanManageFinance').checked=!!u?.canManageFinance; toggleFinanceManagerField();
    document.getElementById('editPasswordHint').classList.toggle('hidden',!u);
    document.getElementById('bulkUserImportBtn').classList.toggle('hidden',!!u);
    document.getElementById('saveCloudUserBtn').innerText=u?'Simpan Perubahan':'Buat Akun';
@@ -1993,11 +2063,11 @@
    return data;
  }
  async function saveCloudUser(){
-   const name=document.getElementById('newUserName').value.trim(),phone=normalizeIndoPhone(document.getElementById('newUserPhone').value.trim()),password=document.getElementById('newUserPassword').value,role=document.getElementById('newUserRole').value,assigned=document.getElementById('newUserAssignedLoc').value.trim()||'ALL';
+   const name=document.getElementById('newUserName').value.trim(),phone=normalizeIndoPhone(document.getElementById('newUserPhone').value.trim()),password=document.getElementById('newUserPassword').value,role=document.getElementById('newUserRole').value,assigned=document.getElementById('newUserAssignedLoc').value.trim()||'ALL',can_manage_finance=(role==='Auditor'&&document.getElementById('newUserCanManageFinance').checked);
    if(!name||!phone){showToast('Nama dan nomor HP wajib diisi.','error');return;}if(!/^\+\d{9,15}$/.test(phone)){showToast('Format nomor HP tidak valid. Gunakan contoh 081234567890.','error');return;}if(!editingCloudUserId && password.length<6){showToast('Password minimal 6 karakter.','error');return;}if(editingCloudUserId && password && password.length<6){showToast('Password baru minimal 6 karakter.','error');return;}
    try{
-     if(editingCloudUserId){await invokeFunctionDetailed('audit5s-user-admin',{action:'update',user_id:editingCloudUserId,full_name:name,phone,password,role,assigned_loc:assigned});showToast('Data user berhasil diperbarui. User perlu login ulang jika role/lokasi berubah.','success');}
-     else {await invokeFunctionDetailed('audit5s-user-admin',{action:'create',full_name:name,phone,password,role,assigned_loc:assigned});showToast(`Akun ${role} berhasil dibuat`,'success');}
+     if(editingCloudUserId){await invokeFunctionDetailed('audit5s-user-admin',{action:'update',user_id:editingCloudUserId,full_name:name,phone,password,role,assigned_loc:assigned,can_manage_finance});showToast('Data user berhasil diperbarui. User perlu login ulang jika role/lokasi berubah.','success');}
+     else {await invokeFunctionDetailed('audit5s-user-admin',{action:'create',full_name:name,phone,password,role,assigned_loc:assigned,can_manage_finance});showToast(`Akun ${role} berhasil dibuat`,'success');}
      closeAdminUserModal();await renderAdminUserTable();
    }catch(e){showToast(e.message||'Gagal menyimpan akun','error');}
  }
@@ -2039,7 +2109,7 @@
    tbody.innerHTML = '<tr><td colspan="4" class="p-6 text-center text-slate-400">Memuat akun...</td></tr>';
    try {
      const data = await invokeFunctionDetailed('audit5s-user-admin', {action:'list'});
-     usersData = (data.users || []).map(u => ({ id:u.user_id, phone:u.phone||'', email:u.email||'', name:u.full_name, role:u.role, assignedLoc:u.assigned_loc }));
+     usersData = (data.users || []).map(u => ({ id:u.user_id, phone:u.phone||'', email:u.email||'', name:u.full_name, role:u.role, assignedLoc:u.assigned_loc, canManageFinance:!!u.can_manage_finance }));
      tbody.innerHTML = usersData.length ? usersData.map(u => `<tr class="hover:bg-slate-50"><td class="p-3.5"><div class="font-bold text-slate-800">${u.name}</div><div class="text-xs ${u.phone?'text-emerald-600':'text-amber-600'}">${u.phone || 'Belum ada nomor HP (akun legacy)'}</div></td><td class="p-3.5 font-semibold text-xs text-brand-600">${u.role}</td><td class="p-3.5 text-xs text-slate-600">${u.assignedLoc}</td><td class="p-3.5 text-center whitespace-nowrap"><button onclick="openAdminUserModal('${u.id}')" class="text-blue-500 hover:text-blue-700 p-1.5" title="Edit user"><i class="fas fa-pen"></i></button><button onclick="deleteCloudUser('${u.id}')" class="text-rose-500 hover:text-rose-700 p-1.5" title="Hapus akun"><i class="fas fa-trash"></i></button></td></tr>`).join('') : '<tr><td colspan="4" class="p-6 text-center text-slate-400">Belum ada akun.</td></tr>';
    } catch(e){ tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-rose-500">${e.message}</td></tr>`; }
  }
@@ -2054,6 +2124,55 @@
    try{await invokeFunctionDetailed('audit5s-user-admin',{action:'update_phone',user_id:userId,phone});showToast('Nomor HP berhasil diperbarui. User sekarang dapat login dengan nomor HP dan password yang sama.','success');await renderAdminUserTable();}
    catch(e){showToast(e.message||'Gagal memperbarui nomor HP','error');}
  }
+
+
+ // ===== FINANCE MODULE =====
+ let financeSettingsCache=null, financeAccessProfile=null, financeOverviewCache=null;
+ function rupiah(v){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(v)||0)}
+ function toggleFinanceManagerField(){const role=document.getElementById('newUserRole')?.value;const box=document.getElementById('financeManagerField');if(!box)return;box.classList.toggle('hidden',role!=='Auditor');box.classList.toggle('flex',role==='Auditor');if(role!=='Auditor')document.getElementById('newUserCanManageFinance').checked=false;}
+ async function loadFinanceSettings(adminPanel=false){
+   try{const data=await invokeFunctionDetailed('audit5s-finance',{action:'settings_get'});financeSettingsCache=data.settings;financeAccessProfile=data.profile;
+     const visible=!!(data.settings?.enabled&&data.visible),btn=document.getElementById('financeNavBtn');if(btn){btn.classList.toggle('hidden',!visible);btn.classList.toggle('flex',visible)}
+     if(currentUserRole==='Admin'&&(adminPanel||!document.getElementById('panelAdminUser')?.classList.contains('hidden'))){
+       document.getElementById('financeEnabledToggle').checked=!!data.settings?.enabled;document.getElementById('financeShowManagement').checked=!!data.settings?.show_management;document.getElementById('financeShowAuditor').checked=!!data.settings?.show_auditor;document.getElementById('financeShowAuditee').checked=!!data.settings?.show_auditee;
+     }
+     return data;
+   }catch(e){console.warn('finance settings',e);const btn=document.getElementById('financeNavBtn');if(btn){btn.classList.add('hidden');btn.classList.remove('flex')}return null;}
+ }
+ async function saveFinanceSettings(){
+   try{const data=await invokeFunctionDetailed('audit5s-finance',{action:'settings_update',enabled:document.getElementById('financeEnabledToggle').checked,show_management:document.getElementById('financeShowManagement').checked,show_auditor:document.getElementById('financeShowAuditor').checked,show_auditee:document.getElementById('financeShowAuditee').checked});financeSettingsCache=data.settings;await loadFinanceSettings(true);showToast('Pengaturan modul keuangan disimpan.','success');}
+   catch(e){showToast(e.message||'Gagal menyimpan pengaturan keuangan','error')}
+ }
+ function financeAllowedLocationIds(){const raw=String(financeAccessProfile?.assigned_loc||currentAssignedLoc||'ALL');const ids=raw.split(/[,;|]/).map(x=>x.trim()).filter(Boolean);return ids.length?ids:['ALL'];}
+ function financeLocationOptions(selectId,allowAll=true){
+   const el=document.getElementById(selectId);if(!el)return;const ids=financeAllowedLocationIds(),priv=currentUserRole==='Admin'||currentUserRole==='Management'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance)||ids.includes('ALL');let locs=locationsConfig||[];if(!priv)locs=locs.filter(x=>ids.includes(x.id));let html=allowAll?'<option value="ALL">Semua Lokasi</option>':'';html+=locs.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)} (${escapeHtml(x.id)})</option>`).join('');el.innerHTML=html||'<option value="">Lokasi penugasan tidak ditemukan</option>';}
+ async function openFinanceModule(){
+   const cfg=await loadFinanceSettings(false);if(!cfg?.settings?.enabled||!cfg.visible){showToast('Modul keuangan sedang disembunyikan oleh Admin.','info');return;}
+   hideAllMainSections();document.getElementById('financeSection').classList.remove('hidden');financeLocationOptions('financeLocationFilter',true);financeLocationOptions('financeBudgetLocation',false);financeLocationOptions('financeExpenseLocation',false);
+   const canBudget=currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance);document.getElementById('financeBudgetInput').classList.toggle('hidden',!canBudget);document.getElementById('financeExpenseInput').classList.toggle('hidden',currentUserRole!=='Auditee');
+   document.getElementById('financeRoleHint').textContent=currentUserRole==='Auditee'?'Realisasi dan saldo hanya untuk lokasi penugasan Anda.':(canBudget?'Anda memiliki hak pengelola anggaran dan verifikasi realisasi.':'Overview keuangan sesuai hak akses Anda.');
+   const now=new Date();document.getElementById('financeBudgetPeriod').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;document.getElementById('financeExpenseDate').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+   await loadFinanceOverview();
+ }
+ async function loadFinanceOverview(){
+   const filter=document.getElementById('financeLocationFilter')?.value||'ALL';try{const data=await invokeFunctionDetailed('audit5s-finance',{action:'overview',location_id:filter});financeOverviewCache=data;renderFinanceOverview(data)}catch(e){showToast(e.message||'Gagal memuat data keuangan','error')}
+ }
+ function renderFinanceOverview(data){
+   const s=data.summary||{};document.getElementById('financeFunds').textContent=rupiah(s.funds);document.getElementById('financeSpent').textContent=rupiah(s.spent);document.getElementById('financeBalance').textContent=rupiah(s.balance);document.getElementById('financePending').textContent=String(s.pending||0);
+   document.getElementById('financeLocationOverview').innerHTML=(data.locations||[]).length?(data.locations||[]).map(x=>`<tr><td class="p-3 font-bold text-slate-700">${escapeHtml(x.location_id)}</td><td class="p-3 text-right">${rupiah(x.funds)}</td><td class="p-3 text-right text-blue-600 font-semibold">${rupiah(x.spent)}</td><td class="p-3 text-right ${x.balance<0?'text-rose-600':'text-emerald-600'} font-bold">${rupiah(x.balance)}</td><td class="p-3 text-center">${x.pending||0}</td></tr>`).join(''):'<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada transaksi keuangan.</td></tr>';
+   document.getElementById('financeBudgetTable').innerHTML=(data.budgets||[]).length?(data.budgets||[]).map(x=>`<tr><td class="p-2 font-semibold">${escapeHtml(x.location_id)}</td><td class="p-2">${escapeHtml(String(x.period).slice(0,7))}</td><td class="p-2">${escapeHtml(x.kind)}</td><td class="p-2 text-right font-bold ${x.kind==='Pengembalian'?'text-rose-600':'text-emerald-600'}">${x.kind==='Pengembalian'?'-':''}${rupiah(x.amount)}</td><td class="p-2 text-slate-500">${escapeHtml(x.note||x.source||'-')}</td></tr>`).join(''):'<tr><td colspan="5" class="p-5 text-center text-slate-400">Belum ada anggaran.</td></tr>';
+   const canVerify=currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance);
+   document.getElementById('financeExpenseTable').innerHTML=(data.expenses||[]).length?(data.expenses||[]).map(x=>{const badge=x.status==='Verified'?'bg-emerald-100 text-emerald-700':x.status==='Rejected'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700';const actions=canVerify&&x.status==='Submitted'?`<button onclick="verifyFinanceExpense('${x.id}','Verified')" class="text-emerald-600 p-1" title="Verifikasi"><i class="fas fa-check"></i></button><button onclick="verifyFinanceExpense('${x.id}','Rejected')" class="text-rose-600 p-1" title="Tolak"><i class="fas fa-times"></i></button>`:'-';return `<tr><td class="p-2"><b>${escapeHtml(x.expense_date||'')}</b><div class="text-[10px] text-slate-500">${escapeHtml(x.location_id)}</div></td><td class="p-2">${escapeHtml(x.description||'-')}<div class="text-[10px] text-slate-400">${escapeHtml([x.category,x.vendor,x.receipt_no].filter(Boolean).join(' • '))}</div></td><td class="p-2 text-right font-bold">${rupiah(x.amount)}</td><td class="p-2 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${badge}">${escapeHtml(x.status)}</span></td><td class="p-2 text-center">${x.evidence_url?`<a href="${x.evidence_url}" target="_blank" rel="noopener" class="text-blue-600"><i class="fas fa-paperclip"></i></a>`:'-'}</td><td class="p-2 text-center whitespace-nowrap">${actions}</td></tr>`}).join(''):'<tr><td colspan="6" class="p-5 text-center text-slate-400">Belum ada realisasi.</td></tr>';
+ }
+ async function saveFinanceBudget(){
+   const loc=document.getElementById('financeBudgetLocation').value,month=document.getElementById('financeBudgetPeriod').value,amount=Number(document.getElementById('financeBudgetAmount').value);if(!loc||!month||!(amount>0)){showToast('Lokasi, periode, dan nominal wajib diisi.','error');return;}
+   try{await invokeFunctionDetailed('audit5s-finance',{action:'budget_create',location_id:loc,period:`${month}-01`,kind:document.getElementById('financeBudgetKind').value,amount,source:document.getElementById('financeBudgetSource').value.trim(),note:document.getElementById('financeBudgetNote').value.trim()});document.getElementById('financeBudgetAmount').value='';document.getElementById('financeBudgetNote').value='';showToast('Anggaran/persekot berhasil disimpan.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menyimpan anggaran','error')}
+ }
+ async function saveFinanceExpense(){
+   const loc=document.getElementById('financeExpenseLocation').value,date=document.getElementById('financeExpenseDate').value,amount=Number(document.getElementById('financeExpenseAmount').value),description=document.getElementById('financeExpenseDescription').value.trim(),file=document.getElementById('financeExpenseEvidence').files?.[0]||null;if(!loc||!date||!(amount>0)||!description){showToast('Lokasi, tanggal, nominal, dan keterangan wajib diisi.','error');return;}if(file&&file.size>10*1024*1024){showToast('Bukti maksimal 10 MB.','error');return;}
+   const btn=document.getElementById('financeExpenseSaveBtn');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1.5"></i>Menyimpan...';try{let evidence_path=null;if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase();const up=await invokeFunctionDetailed('audit5s-finance',{action:'upload_url',location_id:loc,ext});const res=await sb.storage.from('audit5s-finance').uploadToSignedUrl(up.path,up.token,file,{contentType:file.type});if(res.error)throw res.error;evidence_path=up.path;}await invokeFunctionDetailed('audit5s-finance',{action:'expense_create',location_id:loc,expense_date:date,amount,category:document.getElementById('financeExpenseCategory').value.trim(),vendor:document.getElementById('financeExpenseVendor').value.trim(),receipt_no:document.getElementById('financeExpenseReceipt').value.trim(),description,payment_status:document.getElementById('financeExpensePayment').value,evidence_path});['financeExpenseAmount','financeExpenseCategory','financeExpenseVendor','financeExpenseReceipt','financeExpenseDescription'].forEach(id=>document.getElementById(id).value='');document.getElementById('financeExpenseEvidence').value='';showToast('Realisasi berhasil dikirim untuk verifikasi.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menyimpan realisasi','error')}finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-paper-plane mr-1.5"></i>Kirim Realisasi';}
+ }
+ async function verifyFinanceExpense(id,status){const note=prompt(status==='Verified'?'Catatan verifikasi (opsional):':'Alasan penolakan:','')??null;if(note===null)return;try{await invokeFunctionDetailed('audit5s-finance',{action:'expense_verify',id,status,note});showToast(status==='Verified'?'Realisasi diverifikasi.':'Realisasi ditolak.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Verifikasi gagal','error')}}
 
  // Disable legacy role shortcut/admin password flow.
  function loginQuick(){ showToast('Gunakan nomor HP dan password akun.', 'info'); }
