@@ -70,6 +70,17 @@
  }
  </style>
  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.3/dist/umd/supabase.min.js"></script>
+
+<style>
+@keyframes auditBellPulse {
+  0%,100% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
+  20% { transform: rotate(-16deg) scale(1.08); }
+  40% { transform: rotate(14deg) scale(1.08); }
+  60% { transform: rotate(-10deg) scale(1.05); }
+  80% { transform: rotate(8deg) scale(1.03); }
+}
+.audit-bell-alert { animation: auditBellPulse .9s ease-in-out infinite; color:#ef4444 !important; background:#fef2f2 !important; }
+</style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
@@ -91,6 +102,10 @@
  <div class="text-sm font-semibold text-slate-700" id="userNameDisplay">Masuk sebagai</div>
  <div id="userRoleDisplay" class="text-xs text-brand-600 font-medium bg-brand-50 inline-block px-2 py-0.5 rounded border border-brand-100">Role</div>
  </div>
+ <button id="auditorNotificationBell" onclick="openAuditorNotification()" class="hidden relative p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-full h-10 w-10 items-center justify-center" title="Approval menunggu">
+   <i class="fas fa-bell text-lg"></i>
+   <span id="auditorNotificationCount" class="hidden absolute -top-1 -right-1 min-w-[19px] h-[19px] px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full border-2 border-white flex items-center justify-center">0</span>
+ </button>
  <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 rounded-full h-10 w-10 flex items-center justify-center" title="Keluar">
  <i class="fas fa-sign-out-alt"></i>
  </button>
@@ -1348,121 +1363,72 @@
  }
  }
 
+ function getAuditorAssignedLocations(){
+ const raw=String(currentAssignedLoc||'ALL').trim();
+ if(!raw || raw.toUpperCase()==='ALL') return null;
+ return raw.split(/[,;|]/).map(v=>v.trim()).filter(Boolean);
+ }
+ function auditorCanSeeLocation(locId){
+ const allowed=getAuditorAssignedLocations();
+ return !allowed || allowed.includes(String(locId||''));
+ }
+ function getPendingApprovalItems(){
+ const allAudits=JSON.parse(localStorage.getItem('AllAssessments'))||{};
+ const pending=[];
+ for(const key in allAudits){
+   const assessment=allAudits[key]||{};
+   const locId=assessment.locationId || String(key).split('_')[0];
+   if(currentUserRole==='Auditor' && !auditorCanSeeLocation(locId)) continue;
+   if(assessment.checklistId==='temuan_khusus' && Array.isArray(assessment.additionalFindings)){
+     assessment.additionalFindings.forEach(f=>{if((f.followup||f.followupPhoto)&&f.approved===undefined)pending.push({key,id:f.id,locId,checklistId:'temuan_khusus',ts:f.followupTs||''});});
+   } else if(assessment.data){
+     for(const id in assessment.data){const item=assessment.data[id];if(item?.score===0&&(item.followup||item.followupPhoto)&&item.approved===undefined)pending.push({key,id,locId,checklistId:assessment.checklistId||'',ts:item.followupTs||''});}
+   }
+ }
+ return pending;
+ }
  function updatePendingBadgeCount() {
- const allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
- let pendingCount = 0;
-
- for (let key in allAudits) {
- const assessment = allAudits[key];
- if (assessment.checklistId === 'temuan_khusus' && assessment.additionalFindings) {
- assessment.additionalFindings.forEach(f => {
- if ((f.followup || f.followupPhoto) && f.approved === undefined) pendingCount++;
- });
- } else if (assessment.data) {
- for (let id in assessment.data) {
- const item = assessment.data[id];
- if (item.score === 0 && (item.followup || item.followupPhoto) && item.approved === undefined) pendingCount++;
+ const pendingCount=getPendingApprovalItems().length;
+ const badge=document.getElementById('pendingBadgeCard');
+ if(badge){if(pendingCount>0){badge.innerText=`${pendingCount} Pending`;badge.classList.remove('hidden');}else badge.classList.add('hidden');}
+ updateAuditorNotificationBell(pendingCount);
+ return pendingCount;
  }
+ function updateAuditorNotificationBell(forcedCount){
+ const bell=document.getElementById('auditorNotificationBell');
+ const countEl=document.getElementById('auditorNotificationCount');
+ if(!bell||!countEl)return;
+ if(currentUserRole!=='Auditor'){bell.classList.add('hidden');bell.classList.remove('flex','audit-bell-alert');countEl.classList.add('hidden');return;}
+ bell.classList.remove('hidden');bell.classList.add('flex');
+ const count=Number.isFinite(forcedCount)?forcedCount:getPendingApprovalItems().length;
+ if(count>0){countEl.textContent=count>99?'99+':String(count);countEl.classList.remove('hidden');bell.classList.add('audit-bell-alert');bell.title=`${count} tindak lanjut menunggu approval`;}
+ else{countEl.classList.add('hidden');bell.classList.remove('audit-bell-alert');bell.title='Tidak ada approval yang menunggu';}
  }
+ function openAuditorNotification(){
+ if(currentUserRole!=='Auditor')return;
+ if(getPendingApprovalItems().length<1){showToast('Tidak ada tindak lanjut yang menunggu approval.','info');return;}
+ openApprovalMenu();
  }
-
- const badge = document.getElementById('pendingBadgeCard');
- if (badge) {
- if (pendingCount > 0) {
- badge.innerText = `${pendingCount} Pending`;
- badge.classList.remove('hidden');
- } else {
- badge.classList.add('hidden');
+ let auditorApprovalSyncTimer=null;
+ let lastPendingApprovalSignature='';
+ function pendingApprovalSignature(){return getPendingApprovalItems().map(x=>`${x.key}:${x.id}:${x.ts}`).sort().join('|');}
+ function startAuditorApprovalSync(){
+ stopAuditorApprovalSync();
+ if(currentUserRole!=='Auditor')return;
+ lastPendingApprovalSignature=pendingApprovalSignature();
+ auditorApprovalSyncTimer=setInterval(async()=>{
+   if(currentUserRole!=='Auditor')return;
+   const before=lastPendingApprovalSignature;
+   await syncFromCloud();
+   const after=pendingApprovalSignature();
+   updatePendingBadgeCount();
+   if(after!==before){
+     lastPendingApprovalSignature=after;
+     if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden')) loadReport();
+   }
+ },4000);
  }
- }
- }
-
- function renderLocationSelection() {
- const container = document.getElementById('locationList'); 
- container.innerHTML = '';
- 
- if(locationsConfig.length === 0) {
- container.innerHTML = `<div class="p-4 text-center text-slate-400 text-sm bg-slate-50 rounded-xl">Belum ada lokasi. Tambahkan lewat Admin.</div>`;
- return;
- }
-
- locationsConfig.forEach(loc => {
- const isSelected = selectedLocationId === loc.id;
- container.innerHTML += `
- <button onclick="selectLocation('${loc.id}')" class="w-full text-left p-4 rounded-xl border-2 transition-all ${isSelected ? 'border-brand-500 bg-brand-50 shadow-sm' : 'border-slate-100 bg-white hover:border-brand-200'} flex justify-between items-center group">
- <span class="font-bold ${isSelected ? 'text-brand-700' : 'text-slate-700'}">${loc.name}</span>
- <i class="fas ${isSelected ? 'fa-check-circle text-brand-500' : 'fa-chevron-right text-slate-300'}"></i>
- </button>`;
- });
- if (!selectedLocationId) { 
- document.getElementById('checklistList').innerHTML = `<div class="text-slate-400 text-sm italic p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">Silakan pilih lokasi terlebih dahulu</div>`; 
- }
- }
-
- function selectLocation(locId) { 
- selectedLocationId = locId; 
- renderLocationSelection(); 
- renderChecklistSelection(); 
- }
-
- function renderChecklistSelection() {
- const container = document.getElementById('checklistList'); 
- container.innerHTML = '';
- const location = locationsConfig.find(l => l.id === selectedLocationId);
- if (!location) return;
- 
- location.allowedChecklists.forEach(chkId => {
- const chk = checklistsData[chkId]; 
- if(!chk) return;
- container.innerHTML += `
- <button onclick="startAudit('${chkId}')" class="w-full text-left p-4 rounded-xl border-2 border-slate-100 bg-white hover:border-brand-500 transition-all flex items-start gap-3">
- <div class="bg-brand-50 w-10 h-10 rounded-lg flex items-center justify-center text-brand-500"><i class="fas fa-file-signature"></i></div>
- <div>
- <span class="font-bold text-slate-700">${chk.title}</span>
- <span class="text-xs text-slate-500 block">Mulai isi form</span>
- </div>
- </button>`;
- });
-
- container.innerHTML += `
- <button onclick="startAudit('temuan_khusus')" class="w-full text-left p-4 mt-4 rounded-xl border-2 border-purple-500 bg-purple-50 hover:bg-purple-100 transition-all flex items-start gap-3 group shadow-sm">
- <div class="bg-white w-10 h-10 rounded-lg flex items-center justify-center text-purple-600 shadow-sm"><i class="fas fa-plus-circle text-lg"></i></div>
- <div>
- <span class="font-bold text-purple-800">Entry Tambahan Temuan</span>
- <span class="text-xs text-purple-600 block mt-0.5">Catat temuan spesifik di luar checklist</span>
- </div>
- </button>`;
- }
-
- function startAudit(chkId) {
- selectedChecklistId = chkId;
- document.getElementById('selectionSection').classList.add('hidden');
- document.getElementById('auditorSection').classList.remove('hidden');
- 
- const locName = locationsConfig.find(l => l.id === selectedLocationId).name;
- const chkName = chkId === 'temuan_khusus' ? 'Temuan Tambahan Khusus' : checklistsData[chkId].title;
- document.getElementById('auditorLocBadge').innerHTML = `<i class="fas fa-map-marker-alt"></i> ${locName}`;
- document.getElementById('auditorChecklistBadge').innerHTML = `<i class="fas fa-file-alt"></i> ${chkName}`;
- 
- auditData = {}; 
- temuanKhususList = [];
- document.getElementById('totalIssuesCounter').innerText = '0';
- 
- if (chkId === 'temuan_khusus') {
- document.getElementById('checklistContainer').innerHTML = '';
- document.getElementById('temuanKhususContainer').classList.remove('hidden');
- renderTemuanKhususList();
- } else {
- document.getElementById('temuanKhususContainer').classList.add('hidden');
- checklistsData[chkId].categories.forEach(cat => cat.items.forEach(i => auditData[i.id] = {score:null, note:'', timestamp:'', evidencePhoto:''}));
- renderAuditorChecklist();
- }
- }
-
- function backToSelection() {
- document.getElementById('auditorSection').classList.add('hidden');
- document.getElementById('selectionSection').classList.remove('hidden');
- }
+ function stopAuditorApprovalSync(){if(auditorApprovalSyncTimer){clearInterval(auditorApprovalSyncTimer);auditorApprovalSyncTimer=null;}}
 
  function renderAuditorChecklist() {
  const container = document.getElementById('checklistContainer'); 
@@ -1766,7 +1732,7 @@
  hydrateEvidenceImages(container);
  }
 
- function setApproval(chkId, id, isApproved) {
+ async function setApproval(chkId, id, isApproved) {
  const locId = document.getElementById('reportLocSelect').value;
  const key = `${locId}_${chkId}`;
  let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
@@ -1786,7 +1752,12 @@
  }
  }
  localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ try {
+   const {error}=await sb.from('audit5s_state').upsert({key:'AllAssessments',value:allAudits,updated_at:new Date().toISOString()},{onConflict:'key'});
+   if(error) throw error;
+ } catch(e){ console.warn('Approval cloud sync:',e); showToast('Approval tersimpan lokal, sinkronisasi server sedang dicoba ulang.','info'); }
  showToast(isApproved ? 'Tindak lanjut disetujui!' : 'Permintaan perbaikan dikirim ulang ke Auditee', isApproved ? 'success' : 'info');
+ lastPendingApprovalSignature=pendingApprovalSignature();
  loadReport();
  updatePendingBadgeCount();
  }
@@ -1865,7 +1836,7 @@
 
  window.onload = async function() {
    await syncFromCloud();
-   window.addEventListener('focus', () => syncFromCloud());
+   window.addEventListener('focus', async () => { await syncFromCloud(); if(currentUserRole==='Auditor'){updatePendingBadgeCount(); const sig=pendingApprovalSignature(); if(sig!==lastPendingApprovalSignature){lastPendingApprovalSignature=sig;if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden'))loadReport();}} });
  };
 
  // ===== PRODUCTION AUTH OVERRIDES =====
@@ -1887,11 +1858,13 @@
    document.getElementById('userRoleDisplay').innerText = currentUserRole;
    document.getElementById('userNameDisplay').innerText = currentUserName;
    hideAllMainSections();
+   stopAuditorApprovalSync();
+   updateAuditorNotificationBell(0);
    await syncFromCloud();
    if (currentUserRole === 'Management') {
      document.getElementById('managementDashboard').classList.remove('hidden'); renderManagementDashboard();
    } else if (currentUserRole === 'Auditor') {
-     document.getElementById('auditorDashboard').classList.remove('hidden'); updateLocFilterDropdown(); updateAuditorStats(); updatePendingBadgeCount();
+     document.getElementById('auditorDashboard').classList.remove('hidden'); updateLocFilterDropdown(); updateAuditorStats(); updatePendingBadgeCount(); startAuditorApprovalSync();
    } else if (currentUserRole === 'Auditee') {
      document.getElementById('reportSection').classList.remove('hidden'); initReportFilters('auditee');
    } else if (currentUserRole === 'Admin') {
@@ -1962,7 +1935,9 @@
 
  async function logout() {
    await sb.auth.signOut();
+   stopAuditorApprovalSync();
    currentAuthUser = null; currentUserRole = null; currentUserName = ''; cloudReady = false;
+   updateAuditorNotificationBell(0);
    hideAllMainSections();
    document.getElementById('userInfo').classList.add('hidden');
    document.getElementById('loginSection').classList.remove('hidden');
