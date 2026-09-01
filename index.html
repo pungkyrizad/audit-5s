@@ -250,7 +250,7 @@
  <th class="p-3.5 rounded-tl-xl font-bold">ID Lokasi</th>
  <th class="p-3.5 font-bold">Nama Lokasi</th>
  <th class="p-3.5 font-bold">Form Diizinkan</th>
- <th class="p-3.5 rounded-tr-xl font-bold w-24 text-center">Aksi</th>
+ <th class="p-3.5 rounded-tr-xl font-bold w-40 text-center">Aksi</th>
  </tr>
  </thead>
  <tbody id="adminLocTableBody" class="text-sm divide-y divide-slate-100"></tbody>
@@ -302,7 +302,7 @@
  <th class="p-3.5 font-bold">Peran (Role)</th>
  <th class="p-3.5 font-bold">Penugasan Lokasi</th>
  <th class="p-3.5 font-bold text-center">Modul UPR</th>
- <th class="p-3.5 rounded-tr-xl font-bold w-24 text-center">Aksi</th>
+ <th class="p-3.5 rounded-tr-xl font-bold w-40 text-center">Aksi</th>
  </tr>
  </thead>
  <tbody id="adminUserTableBody" class="text-sm divide-y divide-slate-100"></tbody>
@@ -1008,8 +1008,9 @@
  <td class="p-3.5 font-bold text-slate-700">${loc.id}</td>
  <td class="p-3.5 font-medium text-slate-800">${loc.name}</td>
  <td class="p-3.5 text-xs text-brand-600 font-semibold">${loc.allowedChecklists.join(', ')}</td>
- <td class="p-3.5 text-center">
- <button onclick="openAdminLocModal('${loc.id}')" class="text-blue-500 hover:text-blue-700 p-1.5"><i class="fas fa-edit"></i></button>
+ <td class="p-3.5 text-center whitespace-nowrap">
+ <button onclick="openAdminLocModal('${loc.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg font-semibold text-xs" title="Edit lokasi"><i class="fas fa-pen"></i><span>Edit</span></button>
+ <button onclick="deleteAdminLocation('${loc.id}')" class="inline-flex items-center gap-1 px-2.5 py-1.5 ml-1 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg font-semibold text-xs" title="Hapus lokasi"><i class="fas fa-trash-alt"></i><span>Hapus</span></button>
  </td>
  </tr>`;
  });
@@ -1039,6 +1040,50 @@
  }
 
  function closeAdminLocModal() { document.getElementById('adminLocModal').classList.add('hidden'); }
+
+ async function deleteAdminLocation(id) {
+   if(currentUserRole !== 'Admin'){ showToast('Hanya Admin yang dapat menghapus lokasi.', 'error'); return; }
+   const loc = locationsConfig.find(l => l.id === id);
+   if(!loc) return;
+   try {
+     // Jangan hapus master lokasi yang masih menjadi penugasan user aktif.
+     let activeUsers = [];
+     try {
+       const data = await invokeFunctionDetailed('audit5s-user-admin', {action:'list'});
+       activeUsers = (data.users || []).filter(u => {
+         const assigned = String(u.assigned_loc || '').split(/[,;|]/).map(x=>x.trim()).filter(Boolean);
+         return assigned.includes(id);
+       });
+     } catch(e) { console.warn('Gagal memeriksa penugasan user sebelum hapus lokasi', e); }
+     if(activeUsers.length){
+       const names = activeUsers.slice(0,4).map(u=>u.full_name || u.phone || 'User').join(', ');
+       showToast(`Lokasi tidak dapat dihapus karena masih ditugaskan ke ${activeUsers.length} user: ${names}${activeUsers.length>4?'…':''}. Ubah lokasi penugasan user terlebih dahulu.`, 'error');
+       return;
+     }
+
+     const allAudits = JSON.parse(localStorage.getItem('AllAssessments') || '{}');
+     const hasAuditHistory = Object.values(allAudits).some(a => a && a.locationId === id);
+     const hasMaintenance = Array.isArray(maintenanceCache) && maintenanceCache.some(x => x.location_id === id && x.status !== 'Dibatalkan');
+     const hasFinance = !!financeOverviewCache && ([...(financeOverviewCache.budgets||[]), ...(financeOverviewCache.expenses||[])]).some(x => x.location_id === id);
+     const refs = [hasAuditHistory?'riwayat audit':null, hasMaintenance?'UPR/pemeliharaan':null, hasFinance?'transaksi keuangan':null].filter(Boolean);
+     const warning = refs.length ? `\n\nCatatan: lokasi ini memiliki ${refs.join(', ')}. Data historis tersebut TIDAK ikut dihapus dan tetap tersimpan memakai ID lokasi ${id}.` : '';
+     if(!confirm(`Hapus lokasi target "${loc.name}" (${id}) dari master lokasi?${warning}\n\nTindakan ini hanya menghapus lokasi dari Daftar Lokasi Target.`)) return;
+
+     locationsConfig = locationsConfig.filter(l => l.id !== id);
+     saveConfigToLocal();
+     renderAdminLocTable();
+     if(typeof populateMaintenanceControls === 'function') populateMaintenanceControls();
+     if(typeof populateFinanceLocationSelects === 'function'){
+       try{ populateFinanceLocationSelects('financeLocationFilter', true); }catch(e){}
+       try{ populateFinanceLocationSelects('financeBudgetLocation', false); }catch(e){}
+       try{ populateFinanceLocationSelects('financeExpenseLocation', false); }catch(e){}
+     }
+     showToast('Lokasi target berhasil dihapus dari master lokasi.', 'success');
+   } catch(e) {
+     console.error(e);
+     showToast(e.message || 'Gagal menghapus lokasi.', 'error');
+   }
+ }
  
  function saveAdminLoc() {
  const id = document.getElementById('adminLocId').value.trim();
