@@ -1458,9 +1458,19 @@
  locationsConfig.forEach(loc => filter.innerHTML += `<option value="${loc.id}">${loc.name}</option>`);
  }
 
- function updateAuditorStats() {
+ async function updateAuditorStats() {
  const selectedLoc = document.getElementById('statsLocFilter').value;
  let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ try {
+   const {data:row,error}=await sb.from('audit5s_state').select('value').eq('key','AllAssessments').maybeSingle();
+   if(error) throw error;
+   if(row?.value){
+     allAudits=row.value;
+     _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
+   }
+ } catch(e){
+   console.warn('Gagal refresh statistik Auditor dari server:',e);
+ }
  
  let stats = {};
  for (let chkKey in checklistsData) {
@@ -1906,6 +1916,7 @@
    lastPendingApprovalSignature=pendingApprovalSignature();
    loadReport();
    updatePendingBadgeCount();
+   await updateAuditorStats();
  } catch(e){
    console.warn('Approval cloud sync:',e);
    showToast(e.message||'Gagal menyimpan approval ke server. Silakan coba lagi.','error');
@@ -1916,16 +1927,31 @@
 
  async function notifyAuditorsWhatsApp(locId,chkId){try{const{data,error}=await sb.functions.invoke('audit5s-whatsapp-notify',{body:{location_id:locId,checklist_id:chkId,event:'followup_submitted'}});if(error)throw error;if(data?.configured===false){showToast('Tindak lanjut tersimpan. WhatsApp belum dikonfigurasi di server.','info');return;}if(data?.sent>0)showToast(`Notifikasi WhatsApp dikirim ke ${data.sent} auditor.`,'success');}catch(e){console.warn(e);showToast('Tindak lanjut tersimpan, tetapi notifikasi WhatsApp gagal dikirim.','info');}}
 
- function saveFollowUps() {
+ async function saveFollowUps() {
  const locId = document.getElementById('reportLocSelect').value;
  const chkId = document.getElementById('reportChecklistSelect').value;
  const key = `${locId}_${chkId}`;
- let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
  const dirtyIds = new Set(Array.from(followupDirtyIds || []).map(String));
 
- if (!allAudits[key]) return;
  if (dirtyIds.size === 0) {
    showToast('Tidak ada perubahan tindak lanjut untuk disimpan.', 'info');
+   return;
+ }
+
+ let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ try {
+   // Merge selalu dimulai dari state server terbaru agar approval Auditor tidak tertimpa cache Auditee.
+   const {data:row,error:readError}=await sb.from('audit5s_state').select('value').eq('key','AllAssessments').maybeSingle();
+   if(readError) throw readError;
+   if(row?.value) allAudits=row.value;
+ } catch(e){
+   console.warn('Gagal mengambil state terbaru sebelum simpan tindak lanjut:',e);
+   showToast('Gagal sinkronisasi data terbaru. Tindak lanjut belum disimpan agar approval Auditor tidak tertimpa.','error');
+   return;
+ }
+
+ if (!allAudits[key]) {
+   showToast('Data audit tidak ditemukan pada server.','error');
    return;
  }
 
@@ -1962,7 +1988,15 @@
    showToast('Tidak ada perubahan tindak lanjut untuk disimpan.', 'info');
    return;
  }
- localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ try {
+   const {error}=await sb.from('audit5s_state').upsert({key:'AllAssessments',value:allAudits,updated_at:new Date().toISOString()},{onConflict:'key'});
+   if(error) throw error;
+   _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
+ } catch(e){
+   console.warn('Gagal menyimpan tindak lanjut ke server:',e);
+   showToast(e.message||'Gagal menyimpan tindak lanjut ke server.','error');
+   return;
+ }
  followupDirtyIds.clear();
  showToast(`${changedCount} tindak lanjut berhasil dikirim ke Auditor. Status item lain tetap dipertahankan.`, 'success');
  notifyAuditorsWhatsApp(locId,chkId);
