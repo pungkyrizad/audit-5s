@@ -825,7 +825,8 @@
  let selectedLocationId = null;
  let selectedChecklistId = null;
  let auditData = {}; 
- let currentFollowUps = {}; 
+ let currentFollowUps = {};
+ let followupDirtyIds = new Set(); 
  let temuanKhususList = [];
  let reportMode = 'auditor'; // 'auditor', 'approval', 'auditee', 'management'
 
@@ -922,7 +923,7 @@
  }
  async function captureFollowupPhoto(itemId,event){
    const file=event.target.files?.[0]; if(!file)return; event.target.disabled=true;
-   try{const path=await uploadEvidenceFile(file,'auditee',itemId);if(!currentFollowUps[itemId])currentFollowUps[itemId]={text:'',photo:'',photos:[],progress:0};currentFollowUps[itemId].photo=path;currentFollowUps[itemId].photos=[...(currentFollowUps[itemId].photos||[]),path];const box=document.getElementById(`followup_photo_preview_${itemId}`);if(box){box.innerHTML=(currentFollowUps[itemId].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('');await hydrateEvidenceImages(box);}showToast('Foto tindak lanjut berhasil diunggah.','success');}catch(e){showToast(e.message||'Gagal mengunggah foto tindak lanjut.','error');}finally{event.target.disabled=false;}
+   try{const path=await uploadEvidenceFile(file,'auditee',itemId);if(!currentFollowUps[itemId])currentFollowUps[itemId]={text:'',photo:'',photos:[],progress:0};currentFollowUps[itemId].photo=path;currentFollowUps[itemId].photos=[...(currentFollowUps[itemId].photos||[]),path];followupDirtyIds.add(String(itemId));const box=document.getElementById(`followup_photo_preview_${itemId}`);if(box){box.innerHTML=(currentFollowUps[itemId].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('');await hydrateEvidenceImages(box);}showToast('Foto tindak lanjut berhasil diunggah.','success');}catch(e){showToast(e.message||'Gagal mengunggah foto tindak lanjut.','error');}finally{event.target.disabled=false;}
  }
 
  function loginQuick(role) {
@@ -1693,7 +1694,8 @@
  initReportFilters('approval');
  }
 
- function openReportHistory() {
+ async function openReportHistory() {
+ await syncFromCloud();
  document.getElementById('managementDashboard').classList.add('hidden');
  document.getElementById('auditorDashboard').classList.add('hidden');
  document.getElementById('reportSection').classList.remove('hidden');
@@ -1745,6 +1747,7 @@
  const statusFilter = document.getElementById('reportStatusFilter').value;
  
  currentFollowUps = {};
+ followupDirtyIds = new Set();
  const key = `${locId}_${chkId}`;
  const allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
  const savedData = allAudits[key];
@@ -1794,7 +1797,7 @@
  ((f.followup || f.followupPhoto) ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md"><i class="fas fa-clock"></i> Menunggu Approval</span>' : '<span class="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-md">Belum Ditindaklanjuti</span>'));
 
  let replyArea = currentUserRole === 'Auditee' ? 
- `<textarea onchange="currentFollowUps['${f.id}'].text=this.value" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${f.followup||''}</textarea><div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl"><div class="flex justify-between text-xs font-bold mb-2"><span>Progres tindak lanjut</span><span id="followup_progress_label_${f.id}">${currentFollowUps[f.id].progress}%</span></div><input type="range" min="0" max="100" step="5" value="${currentFollowUps[f.id].progress}" class="w-full accent-emerald-600" oninput="currentFollowUps['${f.id}'].progress=Number(this.value);document.getElementById('followup_progress_label_${f.id}').textContent=this.value+'%'"></div><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Tambah Foto Progres<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${f.id}',event)"></label><div id="followup_photo_preview_${f.id}">${(currentFollowUps[f.id].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}</div></div>` : 
+ `<textarea onchange="currentFollowUps['${f.id}'].text=this.value;followupDirtyIds.add(String('${f.id}'))" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${f.followup||''}</textarea><div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl"><div class="flex justify-between text-xs font-bold mb-2"><span>Progres tindak lanjut</span><span id="followup_progress_label_${f.id}">${currentFollowUps[f.id].progress}%</span></div><input type="range" min="0" max="100" step="5" value="${currentFollowUps[f.id].progress}" class="w-full accent-emerald-600" oninput="currentFollowUps['${f.id}'].progress=Number(this.value);followupDirtyIds.add(String('${f.id}'));document.getElementById('followup_progress_label_${f.id}').textContent=this.value+'%'"></div><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Tambah Foto Progres<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${f.id}',event)"></label><div id="followup_photo_preview_${f.id}">${(currentFollowUps[f.id].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}</div></div>` : 
  `<div class="mt-3 text-sm italic text-blue-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100"><i class="fas fa-reply mr-1.5 text-blue-400"></i> ${f.followup || 'Belum ada respon perbaikan'} ${auditeeTsHtml}<div class="mt-2 font-bold">Progres: ${Number(f.followupProgress ?? (f.followup||f.followupPhoto?100:0))}%</div></div>${(Array.isArray(f.followupPhotos)?f.followupPhotos:(f.followupPhoto?[f.followupPhoto]:[])).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}`;
 
  html += `
@@ -1847,7 +1850,7 @@
  ((item.followup || item.followupPhoto) ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-md"><i class="fas fa-clock"></i> Menunggu Approval</span>' : '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 text-xs font-bold rounded-md">Belum Sesuai</span>'));
 
  let replyArea = currentUserRole === 'Auditee' ? 
- `<textarea onchange="currentFollowUps['${id}'].text=this.value" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${item.followup||''}</textarea><div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl"><div class="flex justify-between text-xs font-bold mb-2"><span>Progres tindak lanjut</span><span id="followup_progress_label_${id}">${currentFollowUps[id].progress}%</span></div><input type="range" min="0" max="100" step="5" value="${currentFollowUps[id].progress}" class="w-full accent-emerald-600" oninput="currentFollowUps['${id}'].progress=Number(this.value);document.getElementById('followup_progress_label_${id}').textContent=this.value+'%'"></div><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Tambah Foto Progres<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${id}',event)"></label><div id="followup_photo_preview_${id}">${(currentFollowUps[id].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}</div></div>` : 
+ `<textarea onchange="currentFollowUps['${id}'].text=this.value;followupDirtyIds.add(String('${id}'))" class="w-full mt-3 p-3 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Tuliskan tindakan perbaikan...">${item.followup||''}</textarea><div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl"><div class="flex justify-between text-xs font-bold mb-2"><span>Progres tindak lanjut</span><span id="followup_progress_label_${id}">${currentFollowUps[id].progress}%</span></div><input type="range" min="0" max="100" step="5" value="${currentFollowUps[id].progress}" class="w-full accent-emerald-600" oninput="currentFollowUps['${id}'].progress=Number(this.value);followupDirtyIds.add(String('${id}'));document.getElementById('followup_progress_label_${id}').textContent=this.value+'%'"></div><div class="mt-2"><label class="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-xs font-bold cursor-pointer"><i class="fas fa-camera"></i> Tambah Foto Progres<input type="file" accept="image/*" capture="environment" class="hidden" onchange="captureFollowupPhoto('${id}',event)"></label><div id="followup_photo_preview_${id}">${(currentFollowUps[id].photos||[]).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}</div></div>` : 
  `<div class="mt-3 text-sm italic text-blue-700 bg-blue-50/70 p-3 rounded-xl border border-blue-100"><i class="fas fa-reply mr-1.5 text-blue-400"></i> ${item.followup || 'Belum ada respon perbaikan'} ${auditeeTsHtml}<div class="mt-2 font-bold">Progres: ${Number(item.followupProgress ?? (item.followup||item.followupPhoto?100:0))}%</div></div>${(Array.isArray(item.followupPhotos)?item.followupPhotos:(item.followupPhoto?[item.followupPhoto]:[])).map((p,i)=>evidenceThumbHtml(p,`Foto Tindak Lanjut ${i+1}`)).join('')}`;
 
  html += `
@@ -1877,33 +1880,38 @@
  async function setApproval(chkId, id, isApproved) {
  const locId = document.getElementById('reportLocSelect').value;
  const key = `${locId}_${chkId}`;
- let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
-
- if (allAudits[key]) {
- const ts = getCurrentDateTimeWIB();
- if (chkId === 'temuan_khusus') {
- const item = allAudits[key].additionalFindings.find(f => f.id === id);
- if (item) {
- item.approved = isApproved;
- item.approvalTs = ts;
- }
- } else {
- if (allAudits[key].data[id]) {
- allAudits[key].data[id].approved = isApproved;
- allAudits[key].data[id].approvalTs = ts;
- }
- }
- localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
  try {
+   // Selalu mulai dari versi server terbaru agar approval Auditor lain tidak tertimpa cache lokal.
+   const {data:row,error:readError}=await sb.from('audit5s_state').select('value').eq('key','AllAssessments').maybeSingle();
+   if(readError) throw readError;
+   let allAudits = row?.value || JSON.parse(localStorage.getItem('AllAssessments')) || {};
+   if (!allAudits[key]) throw new Error('Data audit tidak ditemukan pada server.');
+
+   const ts = getCurrentDateTimeWIB();
+   let item = null;
+   if (chkId === 'temuan_khusus') {
+     item = allAudits[key].additionalFindings?.find(f => String(f.id) === String(id));
+   } else {
+     item = allAudits[key].data?.[id];
+   }
+   if (!item) throw new Error('Item tindak lanjut tidak ditemukan.');
+   item.approved = isApproved;
+   item.approvalTs = ts;
+
    const {error}=await sb.from('audit5s_state').upsert({key:'AllAssessments',value:allAudits,updated_at:new Date().toISOString()},{onConflict:'key'});
    if(error) throw error;
- } catch(e){ console.warn('Approval cloud sync:',e); showToast('Approval tersimpan lokal, sinkronisasi server sedang dicoba ulang.','info'); }
- showToast(isApproved ? 'Tindak lanjut disetujui!' : 'Permintaan perbaikan dikirim ulang ke Auditee', isApproved ? 'success' : 'info');
- lastPendingApprovalSignature=pendingApprovalSignature();
- loadReport();
- updatePendingBadgeCount();
+   _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
+
+   showToast(isApproved ? 'Tindak lanjut disetujui!' : 'Permintaan perbaikan dikirim ulang ke Auditee', isApproved ? 'success' : 'info');
+   lastPendingApprovalSignature=pendingApprovalSignature();
+   loadReport();
+   updatePendingBadgeCount();
+ } catch(e){
+   console.warn('Approval cloud sync:',e);
+   showToast(e.message||'Gagal menyimpan approval ke server. Silakan coba lagi.','error');
  }
  }
+
 
 
  async function notifyAuditorsWhatsApp(locId,chkId){try{const{data,error}=await sb.functions.invoke('audit5s-whatsapp-notify',{body:{location_id:locId,checklist_id:chkId,event:'followup_submitted'}});if(error)throw error;if(data?.configured===false){showToast('Tindak lanjut tersimpan. WhatsApp belum dikonfigurasi di server.','info');return;}if(data?.sent>0)showToast(`Notifikasi WhatsApp dikirim ke ${data.sent} auditor.`,'success');}catch(e){console.warn(e);showToast('Tindak lanjut tersimpan, tetapi notifikasi WhatsApp gagal dikirim.','info');}}
@@ -1913,37 +1921,52 @@
  const chkId = document.getElementById('reportChecklistSelect').value;
  const key = `${locId}_${chkId}`;
  let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
+ const dirtyIds = new Set(Array.from(followupDirtyIds || []).map(String));
 
- if (allAudits[key]) {
+ if (!allAudits[key]) return;
+ if (dirtyIds.size === 0) {
+   showToast('Tidak ada perubahan tindak lanjut untuk disimpan.', 'info');
+   return;
+ }
+
  const ts = getCurrentDateTimeWIB();
+ let changedCount = 0;
  if (chkId === 'temuan_khusus') {
- allAudits[key].additionalFindings.forEach(f => {
- if (currentFollowUps[f.id]) {
- f.followup = currentFollowUps[f.id].text;
- f.followupPhoto = currentFollowUps[f.id].photo || f.followupPhoto || '';
- f.followupPhotos = currentFollowUps[f.id].photos || (f.followupPhoto?[f.followupPhoto]:[]);
- f.followupProgress = Number(currentFollowUps[f.id].progress||0);
- f.followupTs = ts;
- f.approved = undefined; // Reset status pending approval
- }
- });
+   allAudits[key].additionalFindings.forEach(f => {
+     if (!dirtyIds.has(String(f.id)) || !currentFollowUps[f.id]) return;
+     f.followup = currentFollowUps[f.id].text;
+     f.followupPhoto = currentFollowUps[f.id].photo || f.followupPhoto || '';
+     f.followupPhotos = currentFollowUps[f.id].photos || (f.followupPhoto?[f.followupPhoto]:[]);
+     f.followupProgress = Number(currentFollowUps[f.id].progress||0);
+     f.followupTs = ts;
+     delete f.approved;
+     delete f.approvalTs;
+     changedCount++;
+   });
  } else {
- for (let id in currentFollowUps) {
- if (allAudits[key].data[id]) {
- allAudits[key].data[id].followup = currentFollowUps[id].text;
- allAudits[key].data[id].followupPhoto = currentFollowUps[id].photo || allAudits[key].data[id].followupPhoto || '';
- allAudits[key].data[id].followupPhotos = currentFollowUps[id].photos || (allAudits[key].data[id].followupPhoto?[allAudits[key].data[id].followupPhoto]:[]);
- allAudits[key].data[id].followupProgress = Number(currentFollowUps[id].progress||0);
- allAudits[key].data[id].followupTs = ts;
- allAudits[key].data[id].approved = undefined;
+   for (const id of dirtyIds) {
+     if (!allAudits[key].data?.[id] || !currentFollowUps[id]) continue;
+     const item = allAudits[key].data[id];
+     item.followup = currentFollowUps[id].text;
+     item.followupPhoto = currentFollowUps[id].photo || item.followupPhoto || '';
+     item.followupPhotos = currentFollowUps[id].photos || (item.followupPhoto?[item.followupPhoto]:[]);
+     item.followupProgress = Number(currentFollowUps[id].progress||0);
+     item.followupTs = ts;
+     delete item.approved;
+     delete item.approvalTs;
+     changedCount++;
+   }
  }
- }
+
+ if (!changedCount) {
+   showToast('Tidak ada perubahan tindak lanjut untuk disimpan.', 'info');
+   return;
  }
  localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
- showToast('Tindak lanjut berhasil dikirim ke Auditor!', 'success');
+ followupDirtyIds.clear();
+ showToast(`${changedCount} tindak lanjut berhasil dikirim ke Auditor. Status item lain tetap dipertahankan.`, 'success');
  notifyAuditorsWhatsApp(locId,chkId);
  loadReport();
- }
  }
 
  function exportToPDF() {
