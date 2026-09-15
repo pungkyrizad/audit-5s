@@ -317,8 +317,8 @@
  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
  <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
  <div>
- <h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chart-pie text-brand-500 mr-2"></i> Statistik Tindak Lanjut Selesai (Progres 100%)</h2>
- <p class="text-xs text-slate-500 mt-1">Menghitung temuan yang progres tindak lanjutnya sudah 100%. Status Approved Auditor ditampilkan sebagai informasi tambahan.</p>
+ <h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chart-pie text-brand-500 mr-2"></i> Statistik Penyelesaian Checklist & Tindak Lanjut</h2>
+ <p class="text-xs text-slate-500 mt-1">Menghitung item checklist yang sudah Sesuai ditambah temuan Auditor yang sudah ditindaklanjuti Auditee 100%. Status Approved Auditor ditampilkan sebagai informasi tambahan.</p>
  </div>
  <div class="w-full md:w-auto">
  <select id="statsLocFilter" onchange="updateAuditorStats()" class="w-full md:w-48 p-2.5 text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-medium">
@@ -1387,11 +1387,15 @@
  } else if (assessment.data) {
  for (let itemId in assessment.data) {
  const item = assessment.data[itemId];
- if (item.score === 0) {
- locTotalIssues++;
- const progress = Number(item.followupProgress ?? ((item.followup || item.followupPhoto) ? 100 : 0));
- if (progress >= 100) locProgress100++;
- if (item.approved === true) locApproved++;
+ if (item.score === 0 || item.score === 1) {
+   locTotalIssues++;
+   if (item.score === 1) {
+     locProgress100++;
+   } else {
+     const progress = Number(item.followupProgress ?? ((item.followup || item.followupPhoto) ? 100 : 0));
+     if (progress >= 100) locProgress100++;
+     if (item.approved === true) locApproved++;
+   }
  }
  }
  }
@@ -1416,7 +1420,7 @@
  </div>
  <div class="text-right">
  <span class="text-sm font-extrabold text-indigo-600">${percentage}% Selesai</span>
- <span class="text-xs text-slate-400 ml-1">(${locProgress100}/${locTotalIssues} Progres 100% • ${locApproved} Approved)</span>
+ <span class="text-xs text-slate-400 ml-1">(${locProgress100}/${locTotalIssues} Selesai/Sesuai • ${locApproved} Approved)</span>
  </div>
  </div>
  <div class="w-full bg-slate-200 h-3.5 rounded-full overflow-hidden">
@@ -1500,11 +1504,15 @@
  } else if (assessment.data) {
  for (let itemId in assessment.data) {
  const item = assessment.data[itemId];
- if (item.score === 0) {
- stats[chkId].total++;
- const progress = Number(item.followupProgress ?? ((item.followup || item.followupPhoto) ? 100 : 0));
- if (progress >= 100) stats[chkId].resolved++;
- if (item.approved === true) stats[chkId].approved++;
+ if (item.score === 0 || item.score === 1) {
+   stats[chkId].total++;
+   if (item.score === 1) {
+     stats[chkId].resolved++;
+   } else {
+     const progress = Number(item.followupProgress ?? ((item.followup || item.followupPhoto) ? 100 : 0));
+     if (progress >= 100) stats[chkId].resolved++;
+     if (item.approved === true) stats[chkId].approved++;
+   }
  }
  }
  }
@@ -1520,7 +1528,7 @@
  <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center">
  <div class="radial-progress mb-3" style="--progress: ${percentage}%; color: ${stat.color};"><span>${percentage}%</span></div>
  <h4 class="text-xs font-bold text-slate-700 line-clamp-1">${stat.title}</h4>
- <p class="text-[10px] text-slate-500 mt-1">${stat.resolved} dari ${stat.total} Progres 100%</p><p class="text-[9px] text-emerald-600 font-bold mt-0.5">${stat.approved} Approved Auditor</p>
+ <p class="text-[10px] text-slate-500 mt-1">${stat.resolved} dari ${stat.total} Selesai / Sesuai</p><p class="text-[9px] text-emerald-600 font-bold mt-0.5">${stat.approved} Approved Auditor</p>
  </div>`;
  }
  }
