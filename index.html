@@ -3,7 +3,7 @@
 <head>
  <meta charset="UTF-8">
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
- <title>Audit 5S</title>
+ <title>PSN BANGHAL & AUDIT 5S</title>
  
  <!-- Tailwind CSS CDN -->
  <script src="https://cdn.tailwindcss.com"></script>
@@ -80,19 +80,74 @@
   80% { transform: rotate(8deg) scale(1.03); }
 }
 .audit-bell-alert { animation: auditBellPulse .9s ease-in-out infinite; color:#ef4444 !important; background:#fef2f2 !important; }
+
+:root {
+  --desktop-shell-max: 1600px;
+  --desktop-content-max: 1480px;
+}
+
+@media (min-width: 1280px) {
+  html { font-size: 17px; }
+  body { line-height: 1.55; }
+  .desktop-shell { max-width: var(--desktop-shell-max) !important; }
+  #managementDashboard,
+  #adminDashboard,
+  #auditorDashboard,
+  #reportSection,
+  #financeSection,
+  #maintenanceSection,
+  #selectionSection,
+  #auditorSection {
+    max-width: var(--desktop-content-max) !important;
+  }
+  .radial-progress {
+    width: 86px;
+    height: 86px;
+  }
+  .radial-progress::before { inset: 7px; }
+  .radial-progress span { font-size: 1.15rem; }
+  #statsContainer { gap: 1.35rem; }
+  #statsContainer > div,
+  #mgmtBarChartList > div,
+  #adminDashboard .bg-white,
+  #auditorDashboard .bg-white,
+  #managementDashboard .bg-white,
+  #financeSection .bg-white,
+  #maintenanceSection .bg-white,
+  #reportSection .bg-white {
+    border-radius: 1.35rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  html { font-size: 18px; }
+  :root {
+    --desktop-shell-max: 1760px;
+    --desktop-content-max: 1600px;
+  }
+  nav .h-16 { height: 5rem; }
+  main.desktop-shell { padding-top: 2rem; padding-bottom: 2.75rem; }
+  #statsContainer { gap: 1.5rem; }
+  .radial-progress {
+    width: 92px;
+    height: 92px;
+  }
+  .radial-progress::before { inset: 8px; }
+  .radial-progress span { font-size: 1.2rem; }
+}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
  <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-40">
- <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+ <div class="desktop-shell max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
  <div class="flex justify-between h-16 items-center">
  <div class="flex items-center gap-3 cursor-pointer" onclick="backToDashboard()">
  <div class="bg-brand-500 text-white p-2.5 rounded-xl shadow-sm">
  <i class="fas fa-clipboard-check text-xl"></i>
  </div>
  <div>
- <h1 class="text-xl font-bold text-slate-800 leading-tight">Audit 5S</h1>
+ <h1 class="text-xl font-bold text-slate-800 leading-tight">PSN BANGHAL & AUDIT 5S</h1>
  <p class="text-xs text-slate-500 font-medium">Platform Inspeksi & Audit 5S</p>
  </div>
  </div>
@@ -120,17 +175,17 @@
  </div>
  </nav>
 
- <main class="flex-grow flex flex-col items-center p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
+ <main class="desktop-shell flex-grow flex flex-col items-center p-4 sm:p-6 lg:p-8 w-full max-w-7xl mx-auto">
  
  <!-- LOGIN SECTION -->
  <div id="loginSection" class="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 mt-6 md:mt-12">
  <div class="bg-gradient-to-br from-brand-50 to-brand-100 p-8 text-center border-b border-brand-100">
  <div class="bg-white w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-brand-500 shadow-sm mb-4"><i class="fas fa-shield-alt text-3xl"></i></div>
- <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Audit 5S</h2>
+ <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">PSN BANGHAL & AUDIT 5S</h2>
  <p class="text-slate-500 text-sm mt-1 font-medium">Login akun untuk mengakses sistem multi-device</p>
  </div>
  <form class="p-8 space-y-4" onsubmit="event.preventDefault(); authLogin();">
- <div><label class="block text-xs font-semibold text-slate-600 mb-1">Nomor HP atau Email</label><input type="text" id="loginEmail" autocomplete="username" required placeholder="08xxxxxxxxxx / +62xxxxxxxxxx / nama@email.com" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none"><p class="text-[11px] text-slate-400 mt-1">Akun baru menggunakan nomor HP. Akun legacy tetap dapat login menggunakan email.</p></div>
+ <div><label class="block text-xs font-semibold text-slate-600 mb-1">Nomor HP</label><input type="text" id="loginEmail" autocomplete="username" required placeholder="08xxxxxxxxxx / +62xxxxxxxxxx" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none"><p class="text-[11px] text-slate-400 mt-1">Masukkan nomor HP yang terdaftar pada sistem.</p></div>
  <div><label class="block text-xs font-semibold text-slate-600 mb-1">Password</label><input type="password" id="loginPassword" autocomplete="current-password" required class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none"></div>
  <button id="loginBtn" type="submit" class="w-full py-3.5 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-bold shadow-sm"><i class="fas fa-sign-in-alt mr-2"></i>Masuk</button>
  <div class="pt-4 border-t border-slate-100 flex items-center justify-center gap-4 text-center"><button type="button" onclick="openAdminRecoveryModal()" class="text-xs text-amber-600 hover:text-amber-700 font-semibold"><i class="fas fa-unlock-alt mr-1"></i>Pemulihan Admin</button><button type="button" onclick="openBootstrapModal()" class="text-xs text-slate-400 hover:text-brand-600 font-semibold"><i class="fas fa-key mr-1"></i>Setup Admin Pertama</button></div>
