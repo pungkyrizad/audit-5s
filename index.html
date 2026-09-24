@@ -1526,68 +1526,36 @@
 
  async function updateAuditorStats() {
  const selectedLoc = document.getElementById('statsLocFilter').value;
- let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
- try {
-   const {data:row,error}=await sb.from('audit5s_state').select('value').eq('key','AllAssessments').maybeSingle();
-   if(error) throw error;
-   if(row?.value){
-     allAudits=row.value;
-     _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
-   }
- } catch(e){
-   console.warn('Gagal refresh statistik Auditor dari server:',e);
- }
- 
+ let rows=null;
+ try { rows=await fetchStructuredFindings(selectedLoc); }
+ catch(e){ console.warn('Tabel audit5s_findings belum tersedia; fallback ke cache legacy.',e); }
+
  let stats = {};
- for (let chkKey in checklistsData) {
- stats[chkKey] = { title: checklistsData[chkKey].title, total: 0, resolved: 0, approved: 0, color: '#0ea5e9' };
- }
+ for (let chkKey in checklistsData) stats[chkKey] = { title: checklistsData[chkKey].title, total: 0, resolved: 0, approved: 0, color: '#0ea5e9' };
  stats['temuan_khusus'] = { title: 'Temuan Khusus', total: 0, resolved: 0, approved: 0, color: '#a855f7' };
 
- for (let key in allAudits) {
- const assessment = allAudits[key];
- if (selectedLoc !== 'ALL' && assessment.locationId !== selectedLoc) continue;
- 
- const chkId = assessment.checklistId;
- if (!stats[chkId]) stats[chkId] = { title: chkId, total: 0, resolved: 0, approved: 0, color: '#94a3b8' };
-
- if (chkId === 'temuan_khusus' && assessment.additionalFindings) {
- assessment.additionalFindings.forEach(finding => {
- stats[chkId].total++;
- const progress = Number(finding.followupProgress ?? ((finding.followup || finding.followupPhoto) ? 100 : 0));
- if (progress >= 100) stats[chkId].resolved++;
- if (finding.approved === true) stats[chkId].approved++;
- });
- } else if (assessment.data) {
- for (let itemId in assessment.data) {
- const item = assessment.data[itemId];
- if (item.score === 0 || item.score === 1) {
-   stats[chkId].total++;
-   if (item.score === 1) {
-     stats[chkId].resolved++;
-   } else {
-     const progress = Number(item.followupProgress ?? ((item.followup || item.followupPhoto) ? 100 : 0));
-     if (progress >= 100) stats[chkId].resolved++;
-     if (item.approved === true) stats[chkId].approved++;
+ if(Array.isArray(rows)){
+   for(const r of rows){
+     const chkId=r.checklist_id||'temuan_khusus';
+     if(!stats[chkId]) stats[chkId]={title:chkId,total:0,resolved:0,approved:0,color:'#94a3b8'};
+     // Checklist sesuai (score=1) dihitung selesai. Temuan (score=0/special) selesai bila progres 100%.
+     if(r.finding_type==='special'){
+       stats[chkId].total++;
+       if(Number(r.followup_progress||0)>=100) stats[chkId].resolved++;
+       if(r.approved===true) stats[chkId].approved++;
+     } else if(Number(r.score)===0 || Number(r.score)===1){
+       stats[chkId].total++;
+       if(Number(r.score)===1 || Number(r.followup_progress||0)>=100) stats[chkId].resolved++;
+       if(Number(r.score)===0 && r.approved===true) stats[chkId].approved++;
+     }
    }
- }
- }
- }
+ }else{
+   const allAudits=JSON.parse(localStorage.getItem('AllAssessments'))||{};
+   for(const key in allAudits){const assessment=allAudits[key];if(selectedLoc!=='ALL'&&assessment.locationId!==selectedLoc)continue;const chkId=assessment.checklistId;if(!stats[chkId])stats[chkId]={title:chkId,total:0,resolved:0,approved:0,color:'#94a3b8'};if(chkId==='temuan_khusus'){(assessment.additionalFindings||[]).forEach(f=>{stats[chkId].total++;if(Number(f.followupProgress||0)>=100)stats[chkId].resolved++;if(f.approved===true)stats[chkId].approved++;});}else{for(const id in assessment.data||{}){const item=assessment.data[id];if(item.score===0||item.score===1){stats[chkId].total++;if(item.score===1||Number(item.followupProgress||0)>=100)stats[chkId].resolved++;if(item.score===0&&item.approved===true)stats[chkId].approved++;}}}}
  }
 
- const container = document.getElementById('statsContainer'); 
- container.innerHTML = '';
- 
- for (let chkId in stats) {
- const stat = stats[chkId];
- let percentage = stat.total === 0 ? 0 : Math.round((stat.resolved / stat.total) * 100);
- container.innerHTML += `
- <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex flex-col items-center text-center">
- <div class="radial-progress mb-3" style="--progress: ${percentage}%; color: ${stat.color};"><span>${percentage}%</span></div>
- <h4 class="text-xs font-bold text-slate-700 line-clamp-1">${stat.title}</h4>
- <p class="text-[10px] text-slate-500 mt-1">${stat.resolved} dari ${stat.total} Selesai / Sesuai</p><p class="text-[9px] text-emerald-600 font-bold mt-0.5">${stat.approved} Approved Auditor</p>
- </div>`;
- }
+ const container=document.getElementById('statsContainer'); container.innerHTML='';
+ for(const chkId in stats){const stat=stats[chkId];const pct=stat.total===0?0:Math.round((stat.resolved/stat.total)*100);container.innerHTML+=`<div class="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col items-center text-center"><div class="radial-progress text-brand-500" style="--progress:${pct*3.6}deg"><span>${pct}%</span></div><h3 class="text-sm font-extrabold text-slate-800 mt-4">${stat.title}</h3><p class="text-xs text-slate-500 mt-1">${stat.resolved} dari ${stat.total} Selesai / Sesuai</p><p class="text-[11px] text-emerald-600 font-bold mt-1">${stat.approved} Approved Auditor</p></div>`;}
  }
 
  function getAuditorAssignedLocations(){
@@ -1599,62 +1567,27 @@
  const allowed=getAuditorAssignedLocations();
  return !allowed || allowed.includes(String(locId||''));
  }
+ let structuredPendingApprovalCache=null;
+ async function refreshStructuredPendingApprovals(){
+   try{
+     const {data,error}=await sb.from('audit5s_findings').select('assessment_key,item_id,location_id,checklist_id,followup,followup_photo,followup_ts,approved,score').is('approved',null).eq('score',0);
+     if(error) throw error;
+     structuredPendingApprovalCache=(data||[]).filter(r=>(r.followup||r.followup_photo)&&auditorCanSeeLocation(r.location_id)).map(r=>({key:r.assessment_key,id:r.item_id,locId:r.location_id,checklistId:r.checklist_id,ts:r.followup_ts||''}));
+     return structuredPendingApprovalCache;
+   }catch(e){console.warn('Pending approval structured query gagal:',e);structuredPendingApprovalCache=null;return null;}
+ }
  function getPendingApprovalItems(){
- const allAudits=JSON.parse(localStorage.getItem('AllAssessments'))||{};
- const pending=[];
- for(const key in allAudits){
-   const assessment=allAudits[key]||{};
-   const locId=assessment.locationId || String(key).split('_')[0];
-   if(currentUserRole==='Auditor' && !auditorCanSeeLocation(locId)) continue;
-   if(assessment.checklistId==='temuan_khusus' && Array.isArray(assessment.additionalFindings)){
-     assessment.additionalFindings.forEach(f=>{if((f.followup||f.followupPhoto)&&f.approved===undefined)pending.push({key,id:f.id,locId,checklistId:'temuan_khusus',ts:f.followupTs||''});});
-   } else if(assessment.data){
-     for(const id in assessment.data){const item=assessment.data[id];if(item?.score===0&&(item.followup||item.followupPhoto)&&item.approved===undefined)pending.push({key,id,locId,checklistId:assessment.checklistId||'',ts:item.followupTs||''});}
-   }
+   if(Array.isArray(structuredPendingApprovalCache)) return structuredPendingApprovalCache;
+   const allAudits=JSON.parse(localStorage.getItem('AllAssessments'))||{};const pending=[];
+   for(const key in allAudits){const assessment=allAudits[key]||{};const locId=assessment.locationId||String(key).split('_')[0];if(currentUserRole==='Auditor'&&!auditorCanSeeLocation(locId))continue;if(assessment.checklistId==='temuan_khusus'&&Array.isArray(assessment.additionalFindings)){assessment.additionalFindings.forEach(f=>{if((f.followup||f.followupPhoto)&&f.approved===undefined)pending.push({key,id:f.id,locId,checklistId:'temuan_khusus',ts:f.followupTs||''});});}else if(assessment.data){for(const id in assessment.data){const item=assessment.data[id];if(item?.score===0&&(item.followup||item.followupPhoto)&&item.approved===undefined)pending.push({key,id,locId,checklistId:assessment.checklistId||'',ts:item.followupTs||''});}}}
+   return pending;
  }
- return pending;
- }
- function updatePendingBadgeCount() {
- const pendingCount=getPendingApprovalItems().length;
- const badge=document.getElementById('pendingBadgeCard');
- if(badge){if(pendingCount>0){badge.innerText=`${pendingCount} Pending`;badge.classList.remove('hidden');}else badge.classList.add('hidden');}
- updateAuditorNotificationBell(pendingCount);
- return pendingCount;
- }
- function updateAuditorNotificationBell(forcedCount){
- const bell=document.getElementById('auditorNotificationBell');
- const countEl=document.getElementById('auditorNotificationCount');
- if(!bell||!countEl)return;
- if(currentUserRole!=='Auditor'){bell.classList.add('hidden');bell.classList.remove('flex','audit-bell-alert');countEl.classList.add('hidden');return;}
- bell.classList.remove('hidden');bell.classList.add('flex');
- const count=Number.isFinite(forcedCount)?forcedCount:getPendingApprovalItems().length;
- if(count>0){countEl.textContent=count>99?'99+':String(count);countEl.classList.remove('hidden');bell.classList.add('audit-bell-alert');bell.title=`${count} tindak lanjut menunggu approval`;}
- else{countEl.classList.add('hidden');bell.classList.remove('audit-bell-alert');bell.title='Tidak ada approval yang menunggu';}
- }
- function openAuditorNotification(){
- if(currentUserRole!=='Auditor')return;
- if(getPendingApprovalItems().length<1){showToast('Tidak ada tindak lanjut yang menunggu approval.','info');return;}
- openApprovalMenu();
- }
- let auditorApprovalSyncTimer=null;
- let lastPendingApprovalSignature='';
+ function updatePendingBadgeCount(){const pendingCount=getPendingApprovalItems().length;const badge=document.getElementById('pendingBadgeCard');if(badge){if(pendingCount>0){badge.innerText=`${pendingCount} Pending`;badge.classList.remove('hidden');}else badge.classList.add('hidden');}updateAuditorNotificationBell(pendingCount);return pendingCount;}
+ function updateAuditorNotificationBell(forcedCount){const bell=document.getElementById('auditorNotificationBell'),countEl=document.getElementById('auditorNotificationCount');if(!bell||!countEl)return;if(currentUserRole!=='Auditor'){bell.classList.add('hidden');bell.classList.remove('flex','audit-bell-alert');countEl.classList.add('hidden');return;}bell.classList.remove('hidden');bell.classList.add('flex');const count=Number.isFinite(forcedCount)?forcedCount:getPendingApprovalItems().length;if(count>0){countEl.textContent=count>99?'99+':String(count);countEl.classList.remove('hidden');bell.classList.add('audit-bell-alert');bell.title=`${count} tindak lanjut menunggu approval`;}else{countEl.classList.add('hidden');bell.classList.remove('audit-bell-alert');bell.title='Tidak ada approval yang menunggu';}}
+ async function openAuditorNotification(){if(currentUserRole!=='Auditor')return;await refreshStructuredPendingApprovals();updatePendingBadgeCount();if(getPendingApprovalItems().length<1){showToast('Tidak ada tindak lanjut yang menunggu approval.','info');return;}openApprovalMenu();}
+ let auditorApprovalSyncTimer=null;let lastPendingApprovalSignature='';
  function pendingApprovalSignature(){return getPendingApprovalItems().map(x=>`${x.key}:${x.id}:${x.ts}`).sort().join('|');}
- function startAuditorApprovalSync(){
- stopAuditorApprovalSync();
- if(currentUserRole!=='Auditor')return;
- lastPendingApprovalSignature=pendingApprovalSignature();
- auditorApprovalSyncTimer=setInterval(async()=>{
-   if(currentUserRole!=='Auditor')return;
-   const before=lastPendingApprovalSignature;
-   await syncFromCloud();
-   const after=pendingApprovalSignature();
-   updatePendingBadgeCount();
-   if(after!==before){
-     lastPendingApprovalSignature=after;
-     if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden')) loadReport();
-   }
- },4000);
- }
+ function startAuditorApprovalSync(){stopAuditorApprovalSync();if(currentUserRole!=='Auditor')return;refreshStructuredPendingApprovals().then(()=>{lastPendingApprovalSignature=pendingApprovalSignature();updatePendingBadgeCount();});auditorApprovalSyncTimer=setInterval(async()=>{if(currentUserRole!=='Auditor')return;const before=lastPendingApprovalSignature;await refreshStructuredPendingApprovals();const after=pendingApprovalSignature();updatePendingBadgeCount();if(after!==before){lastPendingApprovalSignature=after;if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden'))loadReport();}},10000);}
  function stopAuditorApprovalSync(){if(auditorApprovalSyncTimer){clearInterval(auditorApprovalSyncTimer);auditorApprovalSyncTimer=null;}}
 
  function renderAuditorChecklist() {
@@ -1755,7 +1688,7 @@
 
  function closeConfirmModal() { document.getElementById('confirmModal').classList.add('hidden'); }
 
- function executeSubmitAudit() {
+ async function executeSubmitAudit() {
  closeConfirmModal();
  let allAudits = JSON.parse(localStorage.getItem('AllAssessments')) || {};
  const key = `${selectedLocationId}_${selectedChecklistId}`;
@@ -1768,6 +1701,8 @@
  }
  
  localStorage.setItem('AllAssessments', JSON.stringify(allAudits));
+ try { await syncAssessmentToStructuredFindings(key,allAudits[key]); }
+ catch(e){ console.warn('Structured findings sync gagal:',e); showToast('Audit tersimpan, tetapi sinkronisasi tabel cepat belum selesai.','info'); }
  showToast('Hasil inspeksi berhasil disimpan!', 'success');
  setTimeout(() => backToSelection(), 1000);
  }
@@ -1982,6 +1917,8 @@
    item.approved = isApproved;
    item.approvalTs = ts;
 
+   // Simpan status item secara atomik pada tabel terstruktur terlebih dahulu.
+   await syncApprovalToStructuredFindings(key,id,isApproved,ts);
    const {error}=await sb.from('audit5s_state').upsert({key:'AllAssessments',value:allAudits,updated_at:new Date().toISOString()},{onConflict:'key'});
    if(error) throw error;
    _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
@@ -2063,6 +2000,8 @@
    return;
  }
  try {
+   // Update hanya baris yang berubah pada tabel terstruktur; JSON lama tetap ditulis sebagai fallback transisi.
+   await syncFollowupsToStructuredFindings(key,dirtyIds,allAudits[key]);
    const {error}=await sb.from('audit5s_state').upsert({key:'AllAssessments',value:allAudits,updated_at:new Date().toISOString()},{onConflict:'key'});
    if(error) throw error;
    _nativeStorageSetItem.call(localStorage,'AllAssessments',JSON.stringify(allAudits));
@@ -2113,7 +2052,7 @@
 
  window.onload = async function() {
    await syncFromCloud();
-   window.addEventListener('focus', async () => { await syncFromCloud(); if(currentUserRole==='Auditor'){updatePendingBadgeCount(); const sig=pendingApprovalSignature(); if(sig!==lastPendingApprovalSignature){lastPendingApprovalSignature=sig;if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden'))loadReport();}} });
+   window.addEventListener('focus', async () => { if(currentUserRole==='Auditor'){await refreshStructuredPendingApprovals();updatePendingBadgeCount();const sig=pendingApprovalSignature();if(sig!==lastPendingApprovalSignature){lastPendingApprovalSignature=sig;if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden'))loadReport();}} });
  };
 
  // ===== PRODUCTION AUTH OVERRIDES =====
@@ -2273,6 +2212,37 @@
    }
    if (data?.error) throw new Error(data.error);
    return data;
+ }
+
+
+ // Structured findings table (stage-1 performance refactor)
+ async function fetchStructuredFindings(locationId='ALL'){
+   let q=sb.from('audit5s_findings').select('assessment_key,location_id,checklist_id,item_id,finding_type,score,followup,followup_ts,followup_photo,followup_progress,approved,approval_ts');
+   if(locationId && locationId!=='ALL') q=q.eq('location_id',locationId);
+   const {data,error}=await q;
+   if(error) throw error;
+   return data||[];
+ }
+ async function syncAssessmentToStructuredFindings(assessmentKey,assessment){
+   return invokeFunctionDetailed('audit5s-findings',{action:'sync_assessment',assessment_key:assessmentKey,assessment});
+ }
+ async function syncFollowupsToStructuredFindings(assessmentKey,dirtyIds,assessment){
+   const updates=[];
+   const ts=getCurrentDateTimeWIB();
+   const ids=new Set(Array.from(dirtyIds||[]).map(String));
+   if(assessment?.checklistId==='temuan_khusus'){
+     (assessment.additionalFindings||[]).forEach(item=>{
+       if(!ids.has(String(item.id))) return;
+       updates.push({assessment_key:assessmentKey,item_id:String(item.id),followup:item.followup||'',followup_ts:item.followupTs||ts,followup_photo:item.followupPhoto||'',followup_photos:Array.isArray(item.followupPhotos)?item.followupPhotos:[],followup_progress:Number(item.followupProgress||0)});
+     });
+   }else{
+     for(const id of ids){const item=assessment?.data?.[id];if(!item)continue;updates.push({assessment_key:assessmentKey,item_id:String(id),followup:item.followup||'',followup_ts:item.followupTs||ts,followup_photo:item.followupPhoto||'',followup_photos:Array.isArray(item.followupPhotos)?item.followupPhotos:[],followup_progress:Number(item.followupProgress||0)});}
+   }
+   if(!updates.length)return {ok:true,changed:0};
+   return invokeFunctionDetailed('audit5s-findings',{action:'update_followups',updates});
+ }
+ async function syncApprovalToStructuredFindings(assessmentKey,itemId,isApproved,approvalTs){
+   return invokeFunctionDetailed('audit5s-findings',{action:'set_approval',assessment_key:assessmentKey,item_id:String(itemId),approved:isApproved===true,approval_ts:approvalTs});
  }
  async function saveCloudUser(){
    const name=document.getElementById('newUserName').value.trim(),phone=normalizeIndoPhone(document.getElementById('newUserPhone').value.trim()),password=document.getElementById('newUserPassword').value,role=document.getElementById('newUserRole').value,assigned=document.getElementById('newUserAssignedLoc').value.trim()||'ALL',can_manage_finance=(role==='Auditor'&&document.getElementById('newUserCanManageFinance').checked),can_manage_upr=document.getElementById('newUserCanManageUpr').checked;
