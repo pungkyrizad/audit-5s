@@ -2099,9 +2099,9 @@
  showToast('User berhasil dihapus', 'info');
  }
 
- window.onload = async function() {
-   await syncFromCloud();
-   window.addEventListener('focus', async () => { if(currentUserRole==='Auditor'){await refreshStructuredPendingApprovals();updatePendingBadgeCount();const sig=pendingApprovalSignature();if(sig!==lastPendingApprovalSignature){lastPendingApprovalSignature=sig;if(reportMode==='approval'&&!document.getElementById('reportSection')?.classList.contains('hidden'))loadReport();}} });
+ window.onload = function() {
+   // Login UI must paint immediately. No database call is allowed before a valid session exists.
+   console.info('PSN BANGHAL & AUDIT 5S UI ready');
  };
 
  // ===== PRODUCTION AUTH OVERRIDES =====
@@ -2134,12 +2134,20 @@
  }
 
  async function primeAppBootstrap(){
-   try{
-     const data=await invokeFunctionDetailed('audit5s-app-bootstrap',{action:'bootstrap'});
-     applyAppBootstrap(data);
-   }catch(e){
-     console.warn('App bootstrap background gagal; modul opsional akan dimuat saat dibuka.',e);
-   }
+   // Optimistic local bootstrap: all modules can paint immediately from the verified Auth session.
+   const meta=currentAuthUser?.app_metadata||{};
+   const profile={
+     user_id:currentAuthUser?.id,
+     full_name:currentUserName,
+     role:currentUserRole,
+     assigned_loc:currentAssignedLoc||'ALL',
+     can_manage_finance:meta.can_manage_finance===true,
+     can_manage_upr:meta.can_manage_upr===true
+   };
+   applyAppBootstrap({ok:true,profile,finance:{settings:{enabled:true,show_management:true,show_auditor:true,show_auditee:true},visible:true},maintenance:{enabled:true,visible:true}});
+   // Reconcile Admin toggles in the background; never block first paint or module navigation.
+   setTimeout(async()=>{try{const data=await invokeFunctionDetailed('audit5s-app-bootstrap',{action:'bootstrap'});applyAppBootstrap(data)}catch(e){console.warn('Background module access reconciliation skipped',e)}},60);
+   return true;
  }
 
  function refreshCurrentDashboardAfterSync(){
@@ -2171,7 +2179,10 @@
    stopAuditorApprovalSync();
    updateAuditorNotificationBell(0);
 
-   // First paint first: Finance/UPR and the large assessment cache are lazy/background work.
+   // All authenticated users can see every module. Role/permission still controls write actions.
+   await primeAppBootstrap();
+
+   // First paint first: module datasets and the large assessment cache are lazy/background work.
    if (currentUserRole === 'Management') {
      document.getElementById('managementDashboard').classList.remove('hidden'); renderManagementDashboard();
    } else if (currentUserRole === 'Auditor') {
@@ -2182,11 +2193,12 @@
      document.getElementById('adminDashboard').classList.remove('hidden'); switchAdminTab('loc');
    }
 
-   setTimeout(()=>{ primeAppBootstrap(); },0);
-   setTimeout(async()=>{
+   const backgroundSync=async()=>{
      await Promise.allSettled([syncMasterFromCloud(),syncAssessmentCacheFromCloud()]);
      refreshCurrentDashboardAfterSync();
-   },80);
+   };
+   if('requestIdleCallback' in window) requestIdleCallback(()=>backgroundSync(),{timeout:1800});
+   else setTimeout(backgroundSync,900);
  }
 
 
@@ -2268,6 +2280,8 @@
    await sb.auth.signOut();
    stopAuditorApprovalSync();
    currentAuthUser = null; currentUserRole = null; currentUserName = ''; cloudReady = false; financeSettingsCache=null; financeAccessProfile=null; financeModuleVisible=null; maintenanceAccess=null;
+   financeOverviewCache=null;financeOverviewByLocation.clear();financeOverviewInflight=null;
+   maintenanceCache=[];maintenanceCacheAt=0;maintenanceListInflight=null;maintenanceAdminOptions=null;maintenanceDetailCache.clear();
    updateAuditorNotificationBell(0);
    const fbtn=document.getElementById('financeNavBtn'); if(fbtn){fbtn.classList.add('hidden');fbtn.classList.remove('flex');}
    const mbtn=document.getElementById('maintenanceNavBtn'); if(mbtn){mbtn.classList.add('hidden');mbtn.classList.remove('flex');}
@@ -2424,37 +2438,79 @@
 
  // ===== MAINTENANCE / RENOVATION MODULE =====
  let maintenanceAccess=null,maintenanceCache=[],maintenanceAdminOptions=null,editingMaintenanceId=null,selectedMaintenanceId=null;
+ let maintenanceCacheAt=0,maintenanceListInflight=null;
+ const maintenanceDetailCache=new Map();
  async function loadMaintenanceAccess(){if(maintenanceAccess?.profile&&typeof maintenanceAccess.visible==='boolean')return maintenanceAccess;try{const d=await invokeFunctionDetailed('audit5s-maintenance',{action:'access'});maintenanceAccess=d;const b=document.getElementById('maintenanceNavBtn');if(b){b.classList.toggle('hidden',!d.visible);b.classList.toggle('flex',!!d.visible)}return d}catch(e){console.warn('maintenance access',e);return null}}
  async function saveMaintenanceMasterSetting(){try{await invokeFunctionDetailed('audit5s-maintenance',{action:'settings_update',enabled:document.getElementById('maintenanceEnabledToggle').checked});showToast('Pengaturan modul UPR disimpan.','success')}catch(e){showToast(e.message||'Gagal menyimpan pengaturan UPR','error')}}
  async function setMaintenanceUserVisibility(userId,visible){try{await invokeFunctionDetailed('audit5s-maintenance',{action:'visibility_update',user_id:userId,visible});showToast(visible?'Modul UPR ditampilkan untuk user.':'Modul UPR disembunyikan untuk user.','success')}catch(e){showToast(e.message||'Gagal mengubah akses UPR','error');await renderAdminUserTable()}}
  function maintenanceLocName(id){return locationsConfig.find(x=>x.id===id)?.name||id}
  function maintenanceDate(v){if(!v)return '-';const p=String(v).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:v}
  async function openMaintenanceModule(){hideAllMainSections();document.getElementById('maintenanceSection').classList.remove('hidden');await loadMaintenanceProjects()}
- async function loadMaintenanceProjects(){try{if(currentUserRole==='Admin'&&!maintenanceAdminOptions)maintenanceAdminOptions=await invokeFunctionDetailed('audit5s-maintenance',{action:'admin_options'});const d=await invokeFunctionDetailed('audit5s-maintenance',{action:'list'});maintenanceCache=d.projects||[];maintenanceAccess={...(maintenanceAccess||{}),profile:d.profile,visible:true};populateMaintenanceControls();renderMaintenanceProjects()}catch(e){showToast(e.message||'Gagal memuat modul UPR','error')}}
+ async function loadMaintenanceProjects(force=false){
+   const fresh=maintenanceCache.length && (Date.now()-maintenanceCacheAt)<20000;
+   if(!force&&fresh){populateMaintenanceControls();renderMaintenanceProjects();return maintenanceCache;}
+   if(maintenanceListInflight)return maintenanceListInflight;
+   maintenanceListInflight=(async()=>{
+     try{
+       const {data,error}=await sb.rpc('audit5s_maintenance_list');
+       if(error)throw error;
+       maintenanceCache=data?.projects||[];
+       maintenanceCacheAt=Date.now();
+       maintenanceAccess={...(maintenanceAccess||{}),profile:data?.profile||maintenanceAccess?.profile,visible:true,enabled:true};
+       if(data?.admin_options)maintenanceAdminOptions=data.admin_options;
+       populateMaintenanceControls();renderMaintenanceProjects();
+       return maintenanceCache;
+     }catch(e){showToast(e.message||'Gagal memuat modul UPR','error');throw e}
+     finally{maintenanceListInflight=null}
+   })();
+   return maintenanceListInflight;
+ }
  function populateMaintenanceControls(){const locs=locationsConfig||[];const lf=document.getElementById('maintenanceLocationFilter');const cur=lf.value;lf.innerHTML='<option value="ALL">Semua Lokasi</option>'+locs.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');lf.value=cur&&[...lf.options].some(o=>o.value===cur)?cur:'ALL';const ml=document.getElementById('maintLocation');ml.innerHTML='<option value="">Pilih Lokasi</option>'+locs.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('');const admin=currentUserRole==='Admin';document.getElementById('maintenanceAdminForm').classList.toggle('hidden',!admin);if(admin&&maintenanceAdminOptions){const pic=document.getElementById('maintPic');pic.innerHTML='<option value="">Pilih PIC</option>'+(maintenanceAdminOptions.users||[]).filter(x=>x.role!=='Admin').map(x=>`<option value="${x.user_id}">${escapeHtml(x.full_name)} — ${escapeHtml(x.role)} (${escapeHtml(x.assigned_loc||'ALL')})</option>`).join('')}}
  function renderMaintenanceProjects(){const loc=document.getElementById('maintenanceLocationFilter').value,status=document.getElementById('maintenanceStatusFilter').value;let arr=maintenanceCache.filter(x=>(loc==='ALL'||x.location_id===loc)&&(status==='ALL'||x.status===status));const now=new Date();document.getElementById('maintTotal').innerText=maintenanceCache.length;document.getElementById('maintActive').innerText=maintenanceCache.filter(x=>x.status==='Berjalan'||x.status==='Disetujui').length;document.getElementById('maintDone').innerText=maintenanceCache.filter(x=>x.status==='Selesai'||x.latest_progress>=100).length;document.getElementById('maintLate').innerText=maintenanceCache.filter(x=>x.target_date&&new Date(x.target_date)<now&&x.latest_progress<100&&['Disetujui','Berjalan'].includes(x.status)).length;const box=document.getElementById('maintenanceProjectList');box.innerHTML=arr.length?arr.map(x=>{const late=x.target_date&&new Date(x.target_date)<now&&x.latest_progress<100&&['Disetujui','Berjalan'].includes(x.status);return `<div class="bg-white border ${late?'border-rose-300':'border-slate-200'} rounded-2xl p-5 shadow-sm"><div class="flex justify-between gap-3"><div><div class="text-[10px] font-bold text-indigo-600">${escapeHtml(x.proposal_no)}</div><h3 class="font-extrabold text-slate-800 mt-1">${escapeHtml(x.title)}</h3><div class="text-xs text-slate-500 mt-1">${escapeHtml(maintenanceLocName(x.location_id))} • ${escapeHtml(x.category)} • PIC: ${escapeHtml(x.pic_name||'-')}</div></div><span class="h-fit px-2 py-1 rounded-full text-[10px] font-bold ${x.status==='Selesai'?'bg-emerald-100 text-emerald-700':late?'bg-rose-100 text-rose-700':'bg-indigo-50 text-indigo-700'}">${late?'Terlambat':escapeHtml(x.status)}</span></div><div class="mt-4"><div class="flex justify-between text-xs font-bold"><span>Progres</span><span>${Number(x.latest_progress||0)}%</span></div><div class="h-3 bg-slate-100 rounded-full overflow-hidden mt-1"><div class="h-full bg-indigo-600" style="width:${Number(x.latest_progress||0)}%"></div></div></div><div class="grid grid-cols-3 gap-2 mt-4 text-center text-[10px]"><div class="bg-slate-50 rounded-lg p-2"><b>Target</b><div>${maintenanceDate(x.target_date)}</div></div><div class="bg-emerald-50 rounded-lg p-2"><b>Dana</b><div>${rupiah(x.finance?.funds||0)}</div></div><div class="bg-blue-50 rounded-lg p-2"><b>Realisasi</b><div>${rupiah(x.finance?.spent||0)}</div></div></div><div class="mt-4 flex gap-2"><button onclick="openMaintenanceDetail('${x.id}')" class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Detail & Progress</button>${currentUserRole==='Admin'?`<button onclick="editMaintenanceProject('${x.id}')" class="px-3 py-2 text-blue-600 bg-blue-50 rounded-xl"><i class="fas fa-pen"></i></button><button onclick="deleteMaintenanceProject('${x.id}')" class="px-3 py-2 text-rose-600 bg-rose-50 rounded-xl"><i class="fas fa-trash"></i></button>`:''}</div></div>`}).join(''):'<div class="lg:col-span-2 p-10 text-center text-slate-400 bg-white border rounded-2xl">Belum ada usulan pada filter ini.</div>'}
  async function uploadMaintenancePhoto(file,projectId){if(!file)return null;if(file.size>10*1024*1024)throw new Error('Foto maksimal 10 MB.');const ext=(file.name.split('.').pop()||'jpg').toLowerCase();const up=await invokeFunctionDetailed('audit5s-maintenance',{action:'upload_url',project_id:projectId||'draft',ext});const r=await sb.storage.from('audit5s-maintenance').uploadToSignedUrl(up.path,up.token,file,{contentType:file.type});if(r.error)throw r.error;return up.path}
  function resetMaintenanceForm(){editingMaintenanceId=null;['maintProposalNo','maintUnit','maintTitle','maintDescription'].forEach(id=>document.getElementById(id).value='');document.getElementById('maintLocation').value='';document.getElementById('maintPic').value='';document.getElementById('maintTarget').value='';document.getElementById('maintInitialPhoto').value='';document.getElementById('maintStatus').value='Usulan';document.getElementById('maintPriority').value='Sedang';document.getElementById('maintProposalNo').disabled=false;document.getElementById('maintSaveProjectBtn').innerHTML='<i class="fas fa-save mr-1"></i>Simpan Usulan'}
- async function saveMaintenanceProject(){const proposal=document.getElementById('maintProposalNo').value.trim(),loc=document.getElementById('maintLocation').value,title=document.getElementById('maintTitle').value.trim();if(!proposal||!loc||!title){showToast('Nomor usulan, lokasi, dan judul wajib diisi.','error');return}try{const file=document.getElementById('maintInitialPhoto').files?.[0];const photo=await uploadMaintenancePhoto(file,editingMaintenanceId||'draft');await invokeFunctionDetailed('audit5s-maintenance',{action:editingMaintenanceId?'project_update':'project_create',id:editingMaintenanceId||undefined,proposal_no:proposal,location_id:loc,unit_name:document.getElementById('maintUnit').value.trim(),category:document.getElementById('maintCategory').value,title,description:document.getElementById('maintDescription').value.trim(),priority:document.getElementById('maintPriority').value,target_date:document.getElementById('maintTarget').value,pic_user_id:document.getElementById('maintPic').value,initial_photo_path:photo});showToast(editingMaintenanceId?'Usulan diperbarui.':'Usulan baru dibuat.','success');resetMaintenanceForm();await loadMaintenanceProjects()}catch(e){showToast(e.message||'Gagal menyimpan usulan','error')}}
+ async function saveMaintenanceProject(){const proposal=document.getElementById('maintProposalNo').value.trim(),loc=document.getElementById('maintLocation').value,title=document.getElementById('maintTitle').value.trim();if(!proposal||!loc||!title){showToast('Nomor usulan, lokasi, dan judul wajib diisi.','error');return}try{const file=document.getElementById('maintInitialPhoto').files?.[0];const photo=await uploadMaintenancePhoto(file,editingMaintenanceId||'draft');await invokeFunctionDetailed('audit5s-maintenance',{action:editingMaintenanceId?'project_update':'project_create',id:editingMaintenanceId||undefined,proposal_no:proposal,location_id:loc,unit_name:document.getElementById('maintUnit').value.trim(),category:document.getElementById('maintCategory').value,title,description:document.getElementById('maintDescription').value.trim(),priority:document.getElementById('maintPriority').value,target_date:document.getElementById('maintTarget').value,pic_user_id:document.getElementById('maintPic').value,initial_photo_path:photo});showToast(editingMaintenanceId?'Usulan diperbarui.':'Usulan baru dibuat.','success');resetMaintenanceForm();await loadMaintenanceProjects(true)}catch(e){showToast(e.message||'Gagal menyimpan usulan','error')}}
  function editMaintenanceProject(id){const x=maintenanceCache.find(v=>v.id===id);if(!x)return;editingMaintenanceId=id;document.getElementById('maintProposalNo').value=x.proposal_no;document.getElementById('maintProposalNo').disabled=true;document.getElementById('maintLocation').value=x.location_id;document.getElementById('maintUnit').value=x.unit_name||'';document.getElementById('maintCategory').value=x.category;document.getElementById('maintTitle').value=x.title;document.getElementById('maintDescription').value=x.description||'';document.getElementById('maintPriority').value=x.priority;document.getElementById('maintTarget').value=x.target_date||'';document.getElementById('maintPic').value=x.pic_user_id||'';document.getElementById('maintStatus').value=x.status;document.getElementById('maintSaveProjectBtn').innerHTML='<i class="fas fa-save mr-1"></i>Simpan Perubahan';document.getElementById('maintenanceAdminForm').scrollIntoView({behavior:'smooth'})}
- async function deleteMaintenanceProject(id){const r=prompt('Alasan penghapusan usulan:','Kesalahan input');if(r===null||!r.trim())return;try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_delete',id,reason:r.trim()});showToast('Usulan dihapus dari daftar aktif.','success');await loadMaintenanceProjects()}catch(e){showToast(e.message||'Gagal menghapus usulan','error')}}
+ async function deleteMaintenanceProject(id){const r=prompt('Alasan penghapusan usulan:','Kesalahan input');if(r===null||!r.trim())return;try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_delete',id,reason:r.trim()});showToast('Usulan dihapus dari daftar aktif.','success');await loadMaintenanceProjects(true)}catch(e){showToast(e.message||'Gagal menghapus usulan','error')}}
  function maintenanceCanProgress(x){return ['Disetujui','Berjalan'].includes(String(x.status))&&(currentUserRole==='Admin'||maintenanceAccess?.profile?.can_manage_upr||x.pic_user_id===currentAuthUser?.id)}
- async function approveMaintenanceProject(id){const note=prompt('Catatan persetujuan (opsional):','')??null;if(note===null)return;try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_approve',id,note});showToast('Usulan UPR disetujui. PIC sekarang dapat menginput progres.','success');await loadMaintenanceProjects();openMaintenanceDetail(id)}catch(e){showToast(e.message||'Approval UPR gagal','error')}}
- async function rejectMaintenanceProject(id){const note=(prompt('Alasan penolakan usulan UPR:','')||'').trim();if(!note)return showToast('Alasan penolakan wajib diisi.','error');try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_reject',id,note});showToast('Usulan UPR ditolak dan dapat diperbaiki Admin.','success');await loadMaintenanceProjects();openMaintenanceDetail(id)}catch(e){showToast(e.message||'Penolakan UPR gagal','error')}}
- function openMaintenanceDetail(id){
+ async function approveMaintenanceProject(id){const note=prompt('Catatan persetujuan (opsional):','')??null;if(note===null)return;try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_approve',id,note});showToast('Usulan UPR disetujui. PIC sekarang dapat menginput progres.','success');await loadMaintenanceProjects(true);maintenanceDetailCache.delete(id);openMaintenanceDetail(id)}catch(e){showToast(e.message||'Approval UPR gagal','error')}}
+ async function rejectMaintenanceProject(id){const note=(prompt('Alasan penolakan usulan UPR:','')||'').trim();if(!note)return showToast('Alasan penolakan wajib diisi.','error');try{await invokeFunctionDetailed('audit5s-maintenance',{action:'project_reject',id,note});showToast('Usulan UPR ditolak dan dapat diperbaiki Admin.','success');await loadMaintenanceProjects(true);maintenanceDetailCache.delete(id);openMaintenanceDetail(id)}catch(e){showToast(e.message||'Penolakan UPR gagal','error')}}
+ async function hydrateMaintenanceProgress(projectId,force=false){
+   const cached=maintenanceDetailCache.get(projectId);
+   if(!force&&cached&&(Date.now()-cached.at)<30000)return cached.progress;
+   const {data,error}=await sb.rpc('audit5s_maintenance_progress_list',{p_project_id:projectId});
+   if(error)throw error;
+   const progress=(data?.progress||[]).map(x=>({...x}));
+   const paths=[...new Set(progress.map(x=>x.photo_path).filter(Boolean))];
+   if(paths.length){
+     try{
+       const signed=await invokeFunctionDetailed('audit5s-storage-sign',{action:'maintenance_urls',project_id:projectId});
+       const urls=signed?.urls||{};
+       progress.forEach(x=>{if(x.photo_path)x.photo_url=urls[x.photo_path]||null;});
+     }catch(e){console.warn('UPR photo signing skipped',e)}
+   }
+   maintenanceDetailCache.set(projectId,{at:Date.now(),progress});
+   return progress;
+ }
+ async function openMaintenanceDetail(id){
    selectedMaintenanceId=id;const x=maintenanceCache.find(v=>v.id===id);if(!x)return;
+   const d=document.getElementById('maintenanceDetail');
+   d.classList.remove('hidden');
+   d.innerHTML='<div class="p-8 text-center text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>Memuat detail & riwayat progress...</div>';
+   d.scrollIntoView({behavior:'smooth'});
+   try{x.progress=await hydrateMaintenanceProgress(id,false);}catch(e){console.warn(e);x.progress=[];}
    const canProgress=maintenanceCanProgress(x),canApprove=['Admin','Management'].includes(currentUserRole)&&x.status==='Usulan';
-   const pg=(x.progress||[]).map(g=>`<div class="border-l-2 border-indigo-200 pl-3 py-2"><div class="text-xs font-bold">${g.progress_percent}% • ${formatDateTimeID(g.created_at)}</div><div class="text-xs text-slate-500">${escapeHtml(g.note||'-')} — ${escapeHtml(g.created_by_name||'-')}</div>${g.photo_url?`<img src="${g.photo_url}" onclick="openZoomModal('${g.photo_url}')" class="mt-2 w-24 h-20 object-cover rounded-lg cursor-zoom-in">`:''}</div>`).join('')||'<div class="text-xs text-slate-400">Belum ada update progres.</div>';
+   const pg=(x.progress||[]).map(g=>`<div class="border-l-2 border-indigo-200 pl-3 py-2"><div class="text-xs font-bold">${g.progress_percent}% • ${formatDateTimeID(g.created_at)}</div><div class="text-xs text-slate-500">${escapeHtml(g.note||'-')} — ${escapeHtml(g.created_by_name||'-')}</div>${g.photo_url?`<img src="${g.photo_url}" loading="lazy" onclick="openZoomModal('${g.photo_url}')" class="mt-2 w-24 h-20 object-cover rounded-lg cursor-zoom-in">`:''}</div>`).join('')||'<div class="text-xs text-slate-400">Belum ada update progres.</div>';
    const approval=x.status==='Usulan'?'<span class="text-amber-600">Menunggu approval usulan</span>':x.status==='Ditolak'?`<span class="text-rose-600">Ditolak: ${escapeHtml(x.rejection_note||'-')}</span>`:x.approved_at?`<span class="text-emerald-600">Disetujui ${formatDateTimeID(x.approved_at)} oleh ${escapeHtml(x.approved_by_name||'-')}</span>`:'';
-   const d=document.getElementById('maintenanceDetail');d.innerHTML=`<div class="flex justify-between items-start"><div><div class="text-xs font-bold text-indigo-600">${escapeHtml(x.proposal_no)}</div><h3 class="text-xl font-extrabold">${escapeHtml(x.title)}</h3><p class="text-xs text-slate-500 mt-1">${escapeHtml(maintenanceLocName(x.location_id))} • ${escapeHtml(x.category)} • Target ${maintenanceDate(x.target_date)}</p><div class="text-xs mt-2">Status: <b>${escapeHtml(x.status)}</b> • ${approval}</div></div><button onclick="document.getElementById('maintenanceDetail').classList.add('hidden')" class="text-slate-400"><i class="fas fa-times"></i></button></div>
+   d.innerHTML=`<div class="flex justify-between items-start"><div><div class="text-xs font-bold text-indigo-600">${escapeHtml(x.proposal_no)}</div><h3 class="text-xl font-extrabold">${escapeHtml(x.title)}</h3><p class="text-xs text-slate-500 mt-1">${escapeHtml(maintenanceLocName(x.location_id))} • ${escapeHtml(x.category)} • Target ${maintenanceDate(x.target_date)}</p><div class="text-xs mt-2">Status: <b>${escapeHtml(x.status)}</b> • ${approval}</div></div><button onclick="document.getElementById('maintenanceDetail').classList.add('hidden')" class="text-slate-400"><i class="fas fa-times"></i></button></div>
    ${canApprove?`<div class="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200"><b class="text-sm">Review Usulan UPR</b><p class="text-xs text-slate-600 mt-1">Pekerjaan dan transaksi biaya baru dapat berjalan setelah usulan disetujui.</p><div class="mt-3 flex gap-2"><button onclick="approveMaintenanceProject('${x.id}')" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"><i class="fas fa-check mr-1"></i>Setujui Usulan</button><button onclick="rejectMaintenanceProject('${x.id}')" class="px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold"><i class="fas fa-times mr-1"></i>Tolak / Revisi</button></div></div>`:''}
    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-5"><div>${canProgress?`<h4 class="font-bold mb-3">Update Progress</h4><div class="flex items-center gap-3"><input id="maintProgressRange" type="range" min="0" max="100" step="5" value="${x.latest_progress||0}" oninput="document.getElementById('maintProgressPct').innerText=this.value+'%'" class="flex-1 accent-indigo-600"><span id="maintProgressPct" class="font-extrabold text-indigo-600 w-12">${x.latest_progress||0}%</span></div><textarea id="maintProgressNote" rows="2" placeholder="Keterangan progres" class="mt-3 w-full p-2.5 border rounded-xl"></textarea><input id="maintProgressPhoto" type="file" accept="image/jpeg,image/png,image/webp" class="mt-2 w-full p-2 border rounded-xl text-xs"><button onclick="saveMaintenanceProgress()" class="mt-3 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Simpan Progress</button>`:`<div class="p-3 bg-slate-50 rounded-xl text-xs text-slate-500">${x.status==='Usulan'?'Menunggu usulan disetujui sebelum progres dapat dimulai.':x.status==='Ditolak'?'Usulan ditolak. Admin perlu memperbaiki dan mengirim ulang.':'Anda memiliki akses monitoring (read-only) untuk progres pekerjaan.'}</div>`}<h4 class="font-bold mt-6 mb-3">Riwayat Progress</h4><div class="max-h-72 overflow-auto space-y-1">${pg}</div></div><div><h4 class="font-bold mb-3">Keuangan Pekerjaan</h4><div class="grid grid-cols-3 gap-2 text-center text-xs"><div class="bg-emerald-50 p-3 rounded-xl"><b>Dana</b><div>${rupiah(x.finance?.funds||0)}</div></div><div class="bg-blue-50 p-3 rounded-xl"><b>Realisasi</b><div>${rupiah(x.finance?.spent||0)}</div></div><div class="bg-slate-50 p-3 rounded-xl"><b>Sisa</b><div>${rupiah(x.finance?.balance||0)}</div></div></div><div class="mt-4 border border-indigo-200 bg-indigo-50 rounded-xl p-4"><b class="text-xs">Transaksi terpusat</b><p class="text-[11px] text-slate-600 mt-1">Anggaran, persekot dan realisasi UPR dikelola pada satu modul Keuangan & Anggaran Lokasi. Referensi usulan akan terisi otomatis.</p><button onclick="openFinanceForMaintenance('${x.id}')" class="mt-3 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"><i class="fas fa-wallet mr-1"></i>Buka Keuangan UPR</button></div></div></div>`;
-   d.classList.remove('hidden');d.scrollIntoView({behavior:'smooth'});
  }
- async function saveMaintenanceProgress(){const x=maintenanceCache.find(v=>v.id===selectedMaintenanceId);if(!x)return;try{const file=document.getElementById('maintProgressPhoto').files?.[0];const photo=await uploadMaintenancePhoto(file,x.id);await invokeFunctionDetailed('audit5s-maintenance',{action:'progress_add',project_id:x.id,progress_percent:Number(document.getElementById('maintProgressRange').value),note:document.getElementById('maintProgressNote').value.trim(),photo_path:photo});showToast('Progress pekerjaan diperbarui.','success');await loadMaintenanceProjects();openMaintenanceDetail(x.id)}catch(e){showToast(e.message||'Gagal menyimpan progress','error')}}
+ async function saveMaintenanceProgress(){const x=maintenanceCache.find(v=>v.id===selectedMaintenanceId);if(!x)return;try{const file=document.getElementById('maintProgressPhoto').files?.[0];const photo=await uploadMaintenancePhoto(file,x.id);await invokeFunctionDetailed('audit5s-maintenance',{action:'progress_add',project_id:x.id,progress_percent:Number(document.getElementById('maintProgressRange').value),note:document.getElementById('maintProgressNote').value.trim(),photo_path:photo});showToast('Progress pekerjaan diperbarui.','success');maintenanceDetailCache.delete(x.id);await loadMaintenanceProjects(true);openMaintenanceDetail(x.id)}catch(e){showToast(e.message||'Gagal menyimpan progress','error')}}
 
  // ===== FINANCE MODULE =====
  let financeSettingsCache=null, financeAccessProfile=null, financeOverviewCache=null, financeModuleVisible=null;
+ const financeOverviewByLocation=new Map(); let financeOverviewInflight=null;
 let editingFinanceBudgetId=null, editingFinanceExpenseId=null, financeContext=null;
  function rupiah(v){return new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(v)||0)}
  function formatDateTimeID(value){
@@ -2509,23 +2565,41 @@ let editingFinanceBudgetId=null, editingFinanceExpenseId=null, financeContext=nu
    if(document.getElementById('financeExpenseDescription'))document.getElementById('financeExpenseDescription').value=`${financeContext.reference_id} - ${financeContext.title||''}`;
  }
  async function openFinanceForMaintenance(projectId){const x=maintenanceCache.find(v=>v.id===projectId);if(!x)return;if(!['Disetujui','Berjalan','Selesai'].includes(String(x.status))){showToast('Keuangan UPR baru dapat digunakan setelah usulan disetujui.','info');return;}await openFinanceModule({source_module:'UPR',reference_id:x.proposal_no,maintenance_project_id:x.id,location_id:x.location_id,title:x.title,category:x.category});}
- async function loadFinanceOverview(){
-   const filter=document.getElementById('financeLocationFilter')?.value||'ALL';try{const data=await invokeFunctionDetailed('audit5s-finance',{action:'overview',location_id:filter});financeOverviewCache=data;renderFinanceOverview(data)}catch(e){showToast(e.message||'Gagal memuat data keuangan','error')}
+ async function loadFinanceOverview(force=false){
+   const filter=document.getElementById('financeLocationFilter')?.value||'ALL';
+   const cached=financeOverviewByLocation.get(filter);
+   if(!force&&cached&&(Date.now()-cached.at)<20000){financeOverviewCache=cached.data;renderFinanceOverview(cached.data);return cached.data;}
+   if(financeOverviewInflight)return financeOverviewInflight;
+   financeOverviewInflight=(async()=>{
+     try{
+       const {data,error}=await sb.rpc('audit5s_finance_overview',{p_location_id:filter});
+       if(error)throw error;
+       financeOverviewCache=data;financeOverviewByLocation.set(filter,{at:Date.now(),data});renderFinanceOverview(data);return data;
+     }catch(e){showToast(e.message||'Gagal memuat data keuangan','error');throw e}
+     finally{financeOverviewInflight=null}
+   })();
+   return financeOverviewInflight;
  }
  function renderFinanceOverview(data){
    const s=data.summary||{};document.getElementById('financeFunds').textContent=rupiah(s.funds);document.getElementById('financeSpent').textContent=rupiah(s.spent);document.getElementById('financeBalance').textContent=rupiah(s.balance);document.getElementById('financePending').textContent=String(s.pending||0);
    document.getElementById('financeLocationOverview').innerHTML=(data.locations||[]).length?(data.locations||[]).map(x=>`<tr><td class="p-3 font-bold text-slate-700">${escapeHtml(x.location_id)}</td><td class="p-3 text-right">${rupiah(x.funds)}</td><td class="p-3 text-right text-blue-600 font-semibold">${rupiah(x.spent)}</td><td class="p-3 text-right ${x.balance<0?'text-rose-600':'text-emerald-600'} font-bold">${rupiah(x.balance)}</td><td class="p-3 text-center">${x.pending||0}</td></tr>`).join(''):'<tr><td colspan="5" class="p-6 text-center text-slate-400">Belum ada transaksi keuangan.</td></tr>';
    document.getElementById('financeBudgetTable').innerHTML=(data.budgets||[]).length?(data.budgets||[]).map(x=>`<tr><td class="p-2 font-semibold">${escapeHtml(x.location_id)}</td><td class="p-2">${escapeHtml(formatPeriodID(x.period))}</td><td class="p-2">${escapeHtml(x.kind)}</td><td class="p-2 text-right font-bold ${x.kind==='Pengembalian'?'text-rose-600':'text-emerald-600'}">${x.kind==='Pengembalian'?'-':''}${rupiah(x.amount)}</td><td class="p-2 text-[10px] text-slate-500">${formatDateTimeID(x.updated_at||x.created_at)}</td><td class="p-2 text-slate-500">${escapeHtml(x.note||x.source||'-')}<div class="text-[10px] text-indigo-500">${escapeHtml([x.source_module,x.reference_id].filter(Boolean).join(' • '))}</div></td><td class="p-2 text-center">${(currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance))?`<button onclick="editFinanceBudget('${x.id}')" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Edit"><i class="fas fa-pen"></i></button><button onclick="deleteFinanceBudget('${x.id}')" class="p-1.5 text-rose-600 hover:bg-rose-50 rounded" title="Hapus transaksi"><i class="fas fa-trash-alt"></i></button>`:'-'}</td></tr>`).join(''):'<tr><td colspan="7" class="p-5 text-center text-slate-400">Belum ada anggaran.</td></tr>';
    const canVerify=currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance);
-   document.getElementById('financeExpenseTable').innerHTML=(data.expenses||[]).length?(data.expenses||[]).map(x=>{const badge=x.status==='Verified'?'bg-emerald-100 text-emerald-700':x.status==='Rejected'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700';const canEdit=currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance)||(currentUserRole==='Auditee'&&x.created_by===currentAuthUser?.id&&x.status!=='Verified');let actions='';if(canEdit)actions+=`<button onclick="editFinanceExpense('${x.id}')" class="text-blue-600 p-1" title="Edit realisasi"><i class="fas fa-pen"></i></button><button onclick="deleteFinanceExpense('${x.id}')" class="text-rose-600 p-1" title="Hapus realisasi"><i class="fas fa-trash-alt"></i></button>`;if(canVerify&&x.status==='Submitted')actions+=`<button onclick="verifyFinanceExpense('${x.id}','Verified')" class="text-emerald-600 p-1" title="Verifikasi"><i class="fas fa-check"></i></button><button onclick="verifyFinanceExpense('${x.id}','Rejected')" class="text-rose-600 p-1" title="Tolak"><i class="fas fa-times"></i></button>`;if(!actions)actions='-';return `<tr><td class="p-2"><b>${escapeHtml(String(x.expense_date||'').split('-').reverse().join('/'))}</b><div class="text-[10px] text-slate-500">${escapeHtml(x.location_id)}</div></td><td class="p-2">${escapeHtml(x.description||'-')}<div class="text-[10px] text-slate-400">${escapeHtml([x.category,x.vendor,x.receipt_no].filter(Boolean).join(' • '))}</div><div class="text-[10px] text-indigo-500">${escapeHtml([x.source_module,x.reference_id].filter(Boolean).join(' • '))}</div></td><td class="p-2 text-right font-bold">${rupiah(x.amount)}</td><td class="p-2 text-[10px] text-slate-500">${formatDateTimeID(x.updated_at||x.created_at)}</td><td class="p-2 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${badge}">${escapeHtml(x.status)}</span></td><td class="p-2 text-center">${x.evidence_url?`<a href="${x.evidence_url}" target="_blank" rel="noopener" class="text-blue-600"><i class="fas fa-paperclip"></i></a>`:'-'}</td><td class="p-2 text-center whitespace-nowrap">${actions}</td></tr>`}).join(''):'<tr><td colspan="7" class="p-5 text-center text-slate-400">Belum ada realisasi.</td></tr>';
+   document.getElementById('financeExpenseTable').innerHTML=(data.expenses||[]).length?(data.expenses||[]).map(x=>{const badge=x.status==='Verified'?'bg-emerald-100 text-emerald-700':x.status==='Rejected'?'bg-rose-100 text-rose-700':'bg-amber-100 text-amber-700';const canEdit=currentUserRole==='Admin'||(currentUserRole==='Auditor'&&financeAccessProfile?.can_manage_finance)||(currentUserRole==='Auditee'&&x.created_by===currentAuthUser?.id&&x.status!=='Verified');let actions='';if(canEdit)actions+=`<button onclick="editFinanceExpense('${x.id}')" class="text-blue-600 p-1" title="Edit realisasi"><i class="fas fa-pen"></i></button><button onclick="deleteFinanceExpense('${x.id}')" class="text-rose-600 p-1" title="Hapus realisasi"><i class="fas fa-trash-alt"></i></button>`;if(canVerify&&x.status==='Submitted')actions+=`<button onclick="verifyFinanceExpense('${x.id}','Verified')" class="text-emerald-600 p-1" title="Verifikasi"><i class="fas fa-check"></i></button><button onclick="verifyFinanceExpense('${x.id}','Rejected')" class="text-rose-600 p-1" title="Tolak"><i class="fas fa-times"></i></button>`;if(!actions)actions='-';return `<tr><td class="p-2"><b>${escapeHtml(String(x.expense_date||'').split('-').reverse().join('/'))}</b><div class="text-[10px] text-slate-500">${escapeHtml(x.location_id)}</div></td><td class="p-2">${escapeHtml(x.description||'-')}<div class="text-[10px] text-slate-400">${escapeHtml([x.category,x.vendor,x.receipt_no].filter(Boolean).join(' • '))}</div><div class="text-[10px] text-indigo-500">${escapeHtml([x.source_module,x.reference_id].filter(Boolean).join(' • '))}</div></td><td class="p-2 text-right font-bold">${rupiah(x.amount)}</td><td class="p-2 text-[10px] text-slate-500">${formatDateTimeID(x.updated_at||x.created_at)}</td><td class="p-2 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${badge}">${escapeHtml(x.status)}</span></td><td class="p-2 text-center">${x.evidence_path?`<button onclick="openFinanceEvidence('${x.id}')" class="text-blue-600 p-1" title="Buka bukti"><i class="fas fa-paperclip"></i></button>`:'-'}</td><td class="p-2 text-center whitespace-nowrap">${actions}</td></tr>`}).join(''):'<tr><td colspan="7" class="p-5 text-center text-slate-400">Belum ada realisasi.</td></tr>';
+ }
+ async function openFinanceEvidence(id){
+   const x=(financeOverviewCache?.expenses||[]).find(v=>v.id===id);if(!x?.evidence_path)return;
+   const win=window.open('about:blank','_blank');
+   try{const d=await invokeFunctionDetailed('audit5s-storage-sign',{action:'finance_evidence',expense_id:id});if(!d?.url)throw new Error('URL bukti tidak tersedia');if(win)win.location.href=d.url;else window.location.href=d.url;}
+   catch(e){if(win)win.close();showToast(e.message||'Gagal membuka bukti','error')}
  }
  async function saveFinanceBudget(){
    const loc=document.getElementById('financeBudgetLocation').value,month=document.getElementById('financeBudgetPeriod').value,amount=Number(document.getElementById('financeBudgetAmount').value);if(!loc||!month||!(amount>0)){showToast('Lokasi, periode, dan nominal wajib diisi.','error');return;}
-   try{await invokeFunctionDetailed(editingFinanceBudgetId?'audit5s-finance-edit':'audit5s-finance',{action:editingFinanceBudgetId?'budget_update':'budget_create',id:editingFinanceBudgetId||undefined,location_id:loc,period:`${month}-01`,kind:document.getElementById('financeBudgetKind').value,amount,source:document.getElementById('financeBudgetSource').value.trim(),note:document.getElementById('financeBudgetNote').value.trim(),source_module:financeContext?.source_module||'GENERAL',reference_id:financeContext?.reference_id||null,maintenance_project_id:financeContext?.maintenance_project_id||null});editingFinanceBudgetId=null;document.getElementById('financeBudgetAmount').value='';document.getElementById('financeBudgetNote').value='';showToast('Anggaran/persekot berhasil disimpan.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menyimpan anggaran','error')}
+   try{await invokeFunctionDetailed(editingFinanceBudgetId?'audit5s-finance-edit':'audit5s-finance',{action:editingFinanceBudgetId?'budget_update':'budget_create',id:editingFinanceBudgetId||undefined,location_id:loc,period:`${month}-01`,kind:document.getElementById('financeBudgetKind').value,amount,source:document.getElementById('financeBudgetSource').value.trim(),note:document.getElementById('financeBudgetNote').value.trim(),source_module:financeContext?.source_module||'GENERAL',reference_id:financeContext?.reference_id||null,maintenance_project_id:financeContext?.maintenance_project_id||null});editingFinanceBudgetId=null;document.getElementById('financeBudgetAmount').value='';document.getElementById('financeBudgetNote').value='';showToast('Anggaran/persekot berhasil disimpan.','success');await loadFinanceOverview(true);}catch(e){showToast(e.message||'Gagal menyimpan anggaran','error')}
  }
  async function saveFinanceExpense(){
    const loc=document.getElementById('financeExpenseLocation').value,date=document.getElementById('financeExpenseDate').value,amount=Number(document.getElementById('financeExpenseAmount').value),description=document.getElementById('financeExpenseDescription').value.trim(),file=document.getElementById('financeExpenseEvidence').files?.[0]||null;if(!loc||!date||!(amount>0)||!description){showToast('Lokasi, tanggal, nominal, dan keterangan wajib diisi.','error');return;}if(file&&file.size>10*1024*1024){showToast('Bukti maksimal 10 MB.','error');return;}
-   const btn=document.getElementById('financeExpenseSaveBtn');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1.5"></i>Menyimpan...';try{let evidence_path=null;if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase();const up=await invokeFunctionDetailed('audit5s-finance',{action:'upload_url',location_id:loc,ext});const res=await sb.storage.from('audit5s-finance').uploadToSignedUrl(up.path,up.token,file,{contentType:file.type});if(res.error)throw res.error;evidence_path=up.path;}await invokeFunctionDetailed(editingFinanceExpenseId?'audit5s-finance-edit':'audit5s-finance',{action:editingFinanceExpenseId?'expense_update':'expense_create',id:editingFinanceExpenseId||undefined,location_id:loc,expense_date:date,amount,category:document.getElementById('financeExpenseCategory').value.trim(),vendor:document.getElementById('financeExpenseVendor').value.trim(),receipt_no:document.getElementById('financeExpenseReceipt').value.trim(),description,payment_status:document.getElementById('financeExpensePayment').value,evidence_path,source_module:financeContext?.source_module||'GENERAL',reference_id:financeContext?.reference_id||null,maintenance_project_id:financeContext?.maintenance_project_id||null});editingFinanceExpenseId=null;['financeExpenseAmount','financeExpenseCategory','financeExpenseVendor','financeExpenseReceipt','financeExpenseDescription'].forEach(id=>document.getElementById(id).value='');document.getElementById('financeExpenseEvidence').value='';showToast('Realisasi berhasil dikirim untuk verifikasi.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menyimpan realisasi','error')}finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-paper-plane mr-1.5"></i>Kirim Realisasi';}
+   const btn=document.getElementById('financeExpenseSaveBtn');btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin mr-1.5"></i>Menyimpan...';try{let evidence_path=null;if(file){const ext=(file.name.split('.').pop()||'jpg').toLowerCase();const up=await invokeFunctionDetailed('audit5s-finance',{action:'upload_url',location_id:loc,ext});const res=await sb.storage.from('audit5s-finance').uploadToSignedUrl(up.path,up.token,file,{contentType:file.type});if(res.error)throw res.error;evidence_path=up.path;}await invokeFunctionDetailed(editingFinanceExpenseId?'audit5s-finance-edit':'audit5s-finance',{action:editingFinanceExpenseId?'expense_update':'expense_create',id:editingFinanceExpenseId||undefined,location_id:loc,expense_date:date,amount,category:document.getElementById('financeExpenseCategory').value.trim(),vendor:document.getElementById('financeExpenseVendor').value.trim(),receipt_no:document.getElementById('financeExpenseReceipt').value.trim(),description,payment_status:document.getElementById('financeExpensePayment').value,evidence_path,source_module:financeContext?.source_module||'GENERAL',reference_id:financeContext?.reference_id||null,maintenance_project_id:financeContext?.maintenance_project_id||null});editingFinanceExpenseId=null;['financeExpenseAmount','financeExpenseCategory','financeExpenseVendor','financeExpenseReceipt','financeExpenseDescription'].forEach(id=>document.getElementById(id).value='');document.getElementById('financeExpenseEvidence').value='';showToast('Realisasi berhasil dikirim untuk verifikasi.','success');await loadFinanceOverview(true);}catch(e){showToast(e.message||'Gagal menyimpan realisasi','error')}finally{btn.disabled=false;btn.innerHTML='<i class="fas fa-paper-plane mr-1.5"></i>Kirim Realisasi';}
  }
  
 function editFinanceBudget(id){const x=(financeOverviewCache?.budgets||[]).find(v=>v.id===id);if(!x)return;editingFinanceBudgetId=id;document.getElementById('financeBudgetLocation').value=x.location_id;document.getElementById('financeBudgetPeriod').value=String(x.period||'').slice(0,7);document.getElementById('financeBudgetKind').value=x.kind;document.getElementById('financeBudgetAmount').value=x.amount;document.getElementById('financeBudgetSource').value=x.source||'';document.getElementById('financeBudgetNote').value=x.note||'';document.getElementById('financeBudgetInput').scrollIntoView({behavior:'smooth',block:'center'});showToast('Mode edit anggaran/persekot aktif. Simpan untuk memperbarui.','info');}
@@ -2534,15 +2608,15 @@ async function deleteFinanceBudget(id){
   const x=(financeOverviewCache?.budgets||[]).find(v=>v.id===id);if(!x)return;
   if(!confirm(`Hapus transaksi ${x.kind} ${rupiah(x.amount)} untuk ${x.location_id}?\n\nTransaksi akan hilang dari overview, tetapi jejak penghapusan tetap disimpan.`))return;
   const reason=(prompt('Alasan penghapusan wajib diisi:','Salah input')||'').trim();if(reason.length<3){showToast('Alasan penghapusan wajib diisi.','error');return;}
-  try{await invokeFunctionDetailed('audit5s-finance-edit',{action:'budget_delete',id,reason});showToast('Transaksi anggaran/persekot berhasil dihapus.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menghapus transaksi','error')}
+  try{await invokeFunctionDetailed('audit5s-finance-edit',{action:'budget_delete',id,reason});showToast('Transaksi anggaran/persekot berhasil dihapus.','success');await loadFinanceOverview(true);}catch(e){showToast(e.message||'Gagal menghapus transaksi','error')}
 }
 async function deleteFinanceExpense(id){
   const x=(financeOverviewCache?.expenses||[]).find(v=>v.id===id);if(!x)return;
   if(!confirm(`Hapus realisasi ${rupiah(x.amount)} untuk ${x.location_id}?\n\nTransaksi akan hilang dari overview, tetapi jejak penghapusan tetap disimpan.`))return;
   const reason=(prompt('Alasan penghapusan wajib diisi:','Salah input')||'').trim();if(reason.length<3){showToast('Alasan penghapusan wajib diisi.','error');return;}
-  try{await invokeFunctionDetailed('audit5s-finance-edit',{action:'expense_delete',id,reason});showToast('Realisasi berhasil dihapus.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Gagal menghapus realisasi','error')}
+  try{await invokeFunctionDetailed('audit5s-finance-edit',{action:'expense_delete',id,reason});showToast('Realisasi berhasil dihapus.','success');await loadFinanceOverview(true);}catch(e){showToast(e.message||'Gagal menghapus realisasi','error')}
 }
-async function verifyFinanceExpense(id,status){const note=prompt(status==='Verified'?'Catatan verifikasi (opsional):':'Alasan penolakan:','')??null;if(note===null)return;try{await invokeFunctionDetailed('audit5s-finance',{action:'expense_verify',id,status,note});showToast(status==='Verified'?'Realisasi diverifikasi.':'Realisasi ditolak.','success');await loadFinanceOverview();}catch(e){showToast(e.message||'Verifikasi gagal','error')}}
+async function verifyFinanceExpense(id,status){const note=prompt(status==='Verified'?'Catatan verifikasi (opsional):':'Alasan penolakan:','')??null;if(note===null)return;try{await invokeFunctionDetailed('audit5s-finance',{action:'expense_verify',id,status,note});showToast(status==='Verified'?'Realisasi diverifikasi.':'Realisasi ditolak.','success');await loadFinanceOverview(true);}catch(e){showToast(e.message||'Verifikasi gagal','error')}}
 
  // Disable legacy role shortcut/admin password flow.
  function loginQuick(){ showToast('Gunakan nomor HP dan password akun.', 'info'); }
@@ -2562,13 +2636,17 @@ async function verifyFinanceExpense(id,status){const note=prompt(status==='Verif
    }catch(e){console.warn('Session restore gagal',e)}
  },0);
 
+ let lastFocusSyncAt=0;
  window.addEventListener('focus', async () => {
    if(!currentAuthUser)return;
+   const now=Date.now();if(now-lastFocusSyncAt<30000)return;lastFocusSyncAt=now;
    if(currentUserRole==='Auditor'){
      await refreshStructuredPendingApprovals(); updatePendingBadgeCount();
      return;
    }
-   Promise.allSettled([syncMasterFromCloud(),syncAssessmentCacheFromCloud()]).then(refreshCurrentDashboardAfterSync);
+   const needAssessments=!document.getElementById('reportSection')?.classList.contains('hidden')||!document.getElementById('managementDashboard')?.classList.contains('hidden');
+   const jobs=[syncMasterFromCloud()];if(needAssessments)jobs.push(syncAssessmentCacheFromCloud());
+   Promise.allSettled(jobs).then(refreshCurrentDashboardAfterSync);
  });
 
  </script>
